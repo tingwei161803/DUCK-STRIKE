@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+:root {
+  --accent: #ffcc00;
+  --danger: #ff3b30;
+  --bg: #0d0f13;
+}
+
+html, body, #app {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#renderCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+
+.hud-text { text-shadow: 0 2px 4px rgba(0,0,0,0.8); }

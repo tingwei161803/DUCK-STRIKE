@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vite
+# Claude Code 本機專屬設定（權限授權等，因人而異）
+.claude/settings.local.json
+# 原始素材包不進版控（只保留 public/models/ 內實際用到的）
+/download

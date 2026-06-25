@@ -1,0 +1,182 @@
+// ============================================================================
+// config.ts — 全域數值常數（資料層）。換新遊戲調這裡，流程不動。
+// ============================================================================
+
+export const WORLD = {
+  arenaHalf: 48,        // 競技場半徑（正方形）
+  gravity: -22,
+  groundFriction: 10,
+}
+
+export const PLAYER = {
+  height: 1.7,          // 眼睛高度
+  radius: 0.45,
+  walkSpeed: 6.5,
+  runSpeed: 9.5,
+  crouchSpeed: 3.2,
+  jumpSpeed: 7.2,
+  maxHp: 100,
+  startArmor: 0,
+  mouseSensitivity: 0.0022,
+  // 受擊後回血
+  regenDelay: 5,        // 秒，最後一次受擊後
+  regenRate: 8,         // hp/秒
+}
+
+export type WeaponId = 'knife' | 'pistol' | 'smg' | 'ak' | 'shotgun' | 'sniper'
+
+export interface WeaponDef {
+  id: WeaponId
+  name: string
+  model: string         // public/models/guns/*
+  melee?: boolean
+  damage: number
+  rpm: number           // 每分鐘發射數
+  auto: boolean         // 全自動
+  magSize: number
+  reserve: number       // 備彈
+  reloadTime: number    // 秒
+  spreadHip: number     // 腰射散布（弧度）
+  spreadAim: number     // 瞄準散布
+  pellets: number       // 霰彈顆數
+  range: number
+  recoil: number        // 後座（鏡頭抬升量）
+  headMult: number      // 爆頭倍率
+  scope?: number        // 開鏡 FOV（狙擊）
+  price: number
+  // 視角模型擺放（相對相機，右下角）
+  vm: { pos: [number, number, number]; rot: [number, number, number]; scale: number; muzzle: [number, number, number] }
+}
+
+export const WEAPONS: Record<WeaponId, WeaponDef> = {
+  // vm.rot：素材槍管沿 local +X，繞 Y 轉 -90° 讓槍口朝向螢幕內(+Z)。
+  // vm.pos：相對相機的右下偏移。vm.scale：相對統一長度的微調。muzzle 已不使用(改相機相對)。
+  knife: {
+    id: 'knife', name: '軍刀', model: 'knife_1', melee: true,
+    damage: 55, rpm: 120, auto: false, magSize: 0, reserve: 0, reloadTime: 0,
+    spreadHip: 0, spreadAim: 0, pellets: 1, range: 2.4, recoil: 0, headMult: 1.5, price: 0,
+    vm: { pos: [0.16, -0.16, 0.34], rot: [0, -Math.PI / 2, 0], scale: 0.9, muzzle: [0, 0, 0] },
+  },
+  pistol: {
+    id: 'pistol', name: '手槍', model: 'pistol',
+    damage: 28, rpm: 360, auto: false, magSize: 12, reserve: 600, reloadTime: 0.3,
+    spreadHip: 0.022, spreadAim: 0.006, pellets: 1, range: 80, recoil: 0.012, headMult: 3.2, price: 0,
+    vm: { pos: [0.16, -0.17, 0.34], rot: [0, -Math.PI / 2, 0], scale: 0.85, muzzle: [0, 0, 0] },
+  },
+  smg: {
+    id: 'smg', name: '衝鋒槍', model: 'smg',
+    damage: 22, rpm: 750, auto: true, magSize: 30, reserve: 1200, reloadTime: 0.44,
+    spreadHip: 0.04, spreadAim: 0.013, pellets: 1, range: 90, recoil: 0.009, headMult: 2.6, price: 1200,
+    vm: { pos: [0.16, -0.18, 0.36], rot: [0, -Math.PI / 2, 0], scale: 1.0, muzzle: [0, 0, 0] },
+  },
+  ak: {
+    id: 'ak', name: '突擊步槍', model: 'ak',
+    damage: 38, rpm: 600, auto: true, magSize: 30, reserve: 900, reloadTime: 0.5,
+    spreadHip: 0.05, spreadAim: 0.009, pellets: 1, range: 120, recoil: 0.018, headMult: 3.5, price: 2700,
+    vm: { pos: [0.17, -0.18, 0.36], rot: [0, -Math.PI / 2, 0], scale: 1.15, muzzle: [0, 0, 0] },
+  },
+  shotgun: {
+    id: 'shotgun', name: '霰彈槍', model: 'shotgun',
+    damage: 13, rpm: 90, auto: false, magSize: 8, reserve: 320, reloadTime: 0.12, // 逐發裝填(簡化)
+    spreadHip: 0.10, spreadAim: 0.07, pellets: 9, range: 35, recoil: 0.04, headMult: 1.6, price: 2000,
+    vm: { pos: [0.17, -0.18, 0.36], rot: [0, -Math.PI / 2, 0], scale: 1.1, muzzle: [0, 0, 0] },
+  },
+  sniper: {
+    id: 'sniper', name: '狙擊槍', model: 'sniper',
+    damage: 115, rpm: 48, auto: false, magSize: 5, reserve: 250, reloadTime: 0.6,
+    spreadHip: 0.12, spreadAim: 0.0008, pellets: 1, range: 200, recoil: 0.05, headMult: 1.8, scope: 22, price: 4750,
+    vm: { pos: [0.17, -0.18, 0.38], rot: [0, -Math.PI / 2, 0], scale: 1.25, muzzle: [0, 0, 0] },
+  },
+}
+
+export type EnemyId = 'grunt' | 'rusher' | 'hazmat' | 'bomber' | 'boss'
+
+export interface EnemyDef {
+  id: EnemyId
+  name: string
+  model: string         // public/models/characters/*
+  hp: number
+  speed: number
+  damage: number        // 每發
+  rpm: number           // 攻擊頻率
+  range: number         // 開火距離
+  accuracy: number      // 0~1 命中機率
+  reward: number        // 擊殺金錢
+  scale: number
+  suicide?: boolean     // 自爆兵：接近後引爆
+  explodeRadius?: number
+  explodeDmg?: number
+  boss?: boolean
+  tint?: [number, number, number] // 模型染色（區別兵種）
+}
+
+export const ENEMIES: Record<EnemyId, EnemyDef> = {
+  grunt:  { id: 'grunt',  name: '雜兵',   model: 'enemy',  hp: 100, speed: 3.2, damage: 8,  rpm: 90,  range: 32, accuracy: 0.35, reward: 300, scale: 1.0 },
+  rusher: { id: 'rusher', name: '突擊兵', model: 'enemy',  hp: 70,  speed: 5.4, damage: 14, rpm: 50,  range: 6,  accuracy: 0.6,  reward: 350, scale: 0.92 },
+  hazmat: { id: 'hazmat', name: '重裝兵', model: 'hazmat', hp: 240, speed: 2.4, damage: 16, rpm: 70,  range: 28, accuracy: 0.45, reward: 600, scale: 1.05 },
+  bomber: { id: 'bomber', name: '自爆兵', model: 'enemy',  hp: 55,  speed: 6.2, damage: 0,  rpm: 1,   range: 2.6, accuracy: 1, reward: 450, scale: 0.95, suicide: true, explodeRadius: 4.5, explodeDmg: 55, tint: [1, 0.35, 0.1] },
+  boss:   { id: 'boss',   name: '王',     model: 'hazmat', hp: 1600, speed: 2.7, damage: 24, rpm: 90, range: 34, accuracy: 0.55, reward: 3500, scale: 2.3, boss: true, tint: [0.7, 0.1, 0.7] },
+}
+
+export const ECONOMY = {
+  startMoney: 800,
+  killBonusStreak: 50,    // 連殺額外
+  roundReward: 600,
+  headshotBonus: 100,
+}
+
+// 波次設定：每波敵人數與組成隨波遞增；每 5 波為王波
+export interface WaveSpec { count: number; types: EnemyId[]; concurrent: number; boss: boolean }
+export function waveSpec(wave: number): WaveSpec {
+  if (wave % 5 === 0) {
+    // 王波：1 隻王 + 一群小兵
+    const bossCount = Math.floor(wave / 5)            // 第10波2隻、15波3隻…
+    const types: EnemyId[] = []
+    for (let i = 0; i < bossCount; i++) types.push('boss')
+    return { count: bossCount + 4 + Math.floor(wave / 5), types, concurrent: 4, boss: true }
+  }
+  const count = 4 + Math.floor(wave * 1.8)
+  const concurrent = Math.min(4 + Math.floor(wave / 2), 9)
+  const types: EnemyId[] = ['grunt']
+  if (wave >= 2) types.push('rusher')
+  if (wave >= 3) types.push('grunt', 'rusher')
+  if (wave >= 4) types.push('hazmat', 'bomber')
+  if (wave >= 6) types.push('hazmat', 'rusher', 'bomber')
+  return { count, types, concurrent, boss: false }
+}
+
+// 難度
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'hell'
+export interface DiffMod { name: string; enemyHp: number; enemyDmg: number; enemySpeed: number; count: number; reward: number }
+export const DIFFICULTIES: Record<Difficulty, DiffMod> = {
+  easy:   { name: '簡單', enemyHp: 0.7, enemyDmg: 0.55, enemySpeed: 0.9,  count: 0.8,  reward: 1.2 },
+  normal: { name: '普通', enemyHp: 1.0, enemyDmg: 1.0,  enemySpeed: 1.0,  count: 1.0,  reward: 1.0 },
+  hard:   { name: '困難', enemyHp: 1.4, enemyDmg: 1.4,  enemySpeed: 1.1,  count: 1.25, reward: 1.35 },
+  hell:   { name: '地獄', enemyHp: 2.0, enemyDmg: 1.9,  enemySpeed: 1.25, count: 1.5,  reward: 1.7 },
+}
+
+// 掉落物 / 限時強化
+export type PickupKind = 'heal' | 'ammo' | 'frenzy'
+export const DROP = {
+  chance: 0.26,            // 一般敵人掉落機率
+  healAmount: 35,
+  ammoMags: 2,             // 補當前武器 N 個彈匣量的備彈
+  frenzyDuration: 7,       // 狂暴秒數
+  frenzyDmgMult: 2,
+  frenzyRpmMult: 1.5,
+  pickupRadius: 1.8,
+}
+
+// 連殺獎勵門檻
+export const KILLSTREAK = {
+  heal: 5,        // 連殺 5 → 回血
+  healAmount: 30,
+  frenzy: 10,     // 連殺 10 → 狂暴
+  supply: 15,     // 連殺 15 → 補滿彈藥
+}
+
+export const THEME = {
+  title: 'DUCK STRIKE',
+  subtitle: '鴨鴨突擊',
+  accent: '#ffcc00',
+}

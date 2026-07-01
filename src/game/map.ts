@@ -137,7 +137,6 @@ export class GameMap {
     ['tree_1', -38, 38, 0, 6, true],
     ['tree_2', 38, -38, 0, 6, true],
     ['tree_1', 38, 38, 0, 6, true],
-    ['watertank_floor', -34, -30, 0, 6, true],
     ['debris_brokencar', 30, 30, 45, 2.4, true],
     ['tank', -32, 32, 30, 3, true],
 
@@ -181,7 +180,6 @@ export class GameMap {
     ['tree_2', -38, -38, 0, 6, true],
     ['debris_brokencar', -32, -32, 20, 2.4, true],
     ['tree_1', 34, -34, 0, 6, true],
-    ['watertank_floor', 34, 14, 0, 6, true],
   ]
 
   private async buildProps() {

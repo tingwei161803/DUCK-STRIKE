@@ -21,6 +21,13 @@ export function initAudio() {
   if (c.state === 'suspended') c.resume()
 }
 
+// 給音樂模組共用同一個 AudioContext（背景音樂走獨立 bus，音量與 SFX 分開）
+export function getCtx(): AudioContext {
+  const c = ac()
+  if (c.state === 'suspended') c.resume()
+  return c
+}
+
 export function setVolume(v: number) {
   if (master) master.gain.value = v
 }

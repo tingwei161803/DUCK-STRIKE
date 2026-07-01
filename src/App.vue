@@ -8,6 +8,7 @@ import HUD from './ui/HUD.vue'
 import BuyMenu from './ui/BuyMenu.vue'
 import UpgradeMenu from './ui/UpgradeMenu.vue'
 import TouchControls from './ui/TouchControls.vue'
+import MusicMenu from './ui/MusicMenu.vue'
 import type { Input } from './game/input'
 
 const canvas = ref<HTMLCanvasElement>()
@@ -52,6 +53,9 @@ function resume() { game?.resume() }
 
 <template>
   <canvas id="renderCanvas" ref="canvas"></canvas>
+
+  <!-- 右上角：背景音樂選單（5 種曲風 + 關閉），loading 以外皆顯示 -->
+  <MusicMenu v-if="state.phase !== 'loading'" />
 
   <!-- 載入中 -->
   <div v-if="state.phase === 'loading'" class="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-50">
@@ -106,7 +110,7 @@ function resume() { game?.resume() }
           <div>🎯 <b class="text-white/90">無盡波次生存</b>：撐越久波數越高分越高；敵人越後面越多、越強。</div>
           <div>👑 <b class="text-white/90">每 5 波王波</b>：擊敗放大的紫色王，必掉補給。</div>
           <div>🔫 <b class="text-white/90">戰鬥</b>：左鍵射擊、右鍵瞄準、G 丟手榴彈，可射爆場上爆炸桶連鎖。</div>
-          <div>🛒 <b class="text-white/90">軍火庫</b>：波間按 B 買槍 / 補彈 / 護甲。</div>
+          <div>🛒 <b class="text-white/90">軍火庫</b>：每波清空後自動開啟，買槍 / 補彈 / 護甲。</div>
           <div>🔥 <b class="text-white/90">連殺獎勵</b>：5 連回血、10 連狂暴、15 連補滿彈藥。</div>
           <div>⏳ <b class="text-white/90">大絕 (F)</b>：時間緩慢；每殺 5 隻 +1 秒、最多存 10 秒。</div>
           <div>💊 <b class="text-white/90">掉落</b>：補血 / 彈藥 / 限時狂暴，走過自動拾取。</div>
@@ -117,7 +121,8 @@ function resume() { game?.resume() }
 
       <div class="mt-6 text-xs text-white/40 leading-relaxed">
         WASD 移動 · 滑鼠 瞄準 · 左鍵 射擊 · 右鍵 瞄準/開鏡<br>
-        R 換彈 · G 手榴彈 · 1-5 換槍 · Q 軍刀 · Shift 跑 · Ctrl/C 蹲 · B 購買 · Esc 暫停
+        R 換彈 · G 手榴彈 · F 大絕 · 1-5 換槍 · Q 軍刀 · Shift 跑 · Ctrl/C 蹲 · Esc 暫停<br>
+        <span class="text-white/30">購買軍火只在每波之間（波次清空後自動開啟軍火庫）</span>
       </div>
     </div>
   </div>

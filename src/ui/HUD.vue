@@ -179,6 +179,6 @@ function floatStyle(f: any) {
 
   <!-- 提示列 -->
   <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-[11px] text-white/40 pointer-events-none">
-    WASD 移動 · 滑鼠 瞄準 · 左鍵 射擊 · 右鍵 瞄準 · R 換彈 · G 手榴彈 · F 大絕 · 1-5 換槍 · Shift 跑 · Ctrl 蹲 · B 購買
+    WASD 移動 · 滑鼠 瞄準 · 左鍵 射擊 · 右鍵 瞄準 · R 換彈 · G 手榴彈 · F 大絕 · 1-5 換槍 · Shift 跑 · Ctrl 蹲
   </div>
 </template>

@@ -525,7 +525,6 @@ export class Game {
     const phase = this.state.phase
 
     if (phase === 'playing') {
-      if (this.input.justPressed('KeyB')) { this.openBuyMid(); }
       if (this.grenadeCd > 0) this.grenadeCd -= dt
       if (this.input.justPressed('KeyG')) this.tryThrowGrenade()
       if (this.input.justPressed('KeyF')) this.toggleUltimate()
@@ -553,12 +552,6 @@ export class Game {
     this.cleanupFloats()
     this.input.endFrame()
     this.scene.render()
-  }
-
-  private openBuyMid() {
-    // 遊玩中按 B：開購買選單（暫停動作）
-    this.state.phase = 'buy'
-    this.input.exitLock()
   }
 
   private tryThrowGrenade() {

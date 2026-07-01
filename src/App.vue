@@ -112,7 +112,9 @@ function resume() { game?.resume() }
     <button @click="resume" class="px-10 py-3 bg-yellow-400 text-black font-black text-xl rounded-xl hover:bg-yellow-300 transition cursor-pointer">
       繼續遊戲
     </button>
-    <div class="text-white/40 text-sm mt-4">點擊繼續以重新鎖定滑鼠</div>
+    <a href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener"
+      class="mt-4 px-6 py-2 bg-blue-600/80 text-white font-bold rounded-lg hover:bg-blue-500 transition cursor-pointer">📘 FB 粉絲團</a>
+    <div class="text-white/40 text-sm mt-3">點擊繼續以重新鎖定滑鼠</div>
   </div>
 
   <!-- 死亡結算 -->
@@ -133,5 +135,7 @@ function resume() { game?.resume() }
         返回選單
       </button>
     </div>
+    <a href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener"
+      class="mt-5 px-6 py-2 bg-blue-600/80 text-white font-bold rounded-lg hover:bg-blue-500 transition cursor-pointer">📘 追蹤 FB 粉絲團</a>
   </div>
 </template>

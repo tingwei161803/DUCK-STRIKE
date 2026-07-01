@@ -91,6 +91,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <button @click="emit('messages')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">💬 留言板</button>
           <button @click="emit('codex', 'enemies')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">📖 圖鑑</button>
           <button @click="emit('online')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">📈 線上人數</button>
+          <a href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener"
+            class="px-4 py-2 bg-blue-600/80 text-white font-bold rounded-lg hover:bg-blue-500 transition cursor-pointer">📘 FB 粉絲團</a>
           <button @click="emit('upgrades')" class="px-4 py-2 bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-bold rounded-lg hover:bg-cyan-500/30 transition cursor-pointer">⏳ 永久升級 · ★{{ metaCoins }}</button>
         </div>
       </div>

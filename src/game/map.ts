@@ -105,11 +105,11 @@ export class GameMap {
     ['container_long', 0, 0, 0, 3.2, true],
     ['container_small', -8, 6, 30, 3, true],
     ['container_small', 8, -6, -30, 3, true],
-    // 四個角落結構
-    ['brickwall_1', -22, 22, 0, 4, true],
-    ['brickwall_2', 22, 22, 90, 4, true],
-    ['brickwall_1', -22, -22, 90, 4, true],
-    ['brickwall_2', 22, -22, 0, 4, true],
+    // 四個角落結構（改用長貨櫃 Container_Long）
+    ['container_long', -22, 22, 0, 3.2, true],
+    ['container_long', 22, 22, 90, 3.2, true],
+    ['container_long', -22, -22, 90, 3.2, true],
+    ['container_long', 22, -22, 0, 3.2, true],
     // 沙包掩體群
     ['sacktrench', -14, 0, 0, 1.4, true],
     ['sacktrench', 14, 0, 0, 1.4, true],

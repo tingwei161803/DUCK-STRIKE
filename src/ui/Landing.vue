@@ -9,6 +9,7 @@ const emit = defineEmits<{
   (e: 'leaderboard'): void
   (e: 'messages'): void
   (e: 'upgrades'): void
+  (e: 'codex', tab: 'enemies' | 'weapons'): void
 }>()
 
 const diffs = Object.entries(DIFFICULTIES).map(([id, d]) => ({ id: id as Difficulty, name: d.name }))
@@ -101,6 +102,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <div class="flex gap-2 flex-wrap justify-center">
           <button @click="emit('leaderboard')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">🏆 排行榜</button>
           <button @click="emit('messages')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">💬 留言板</button>
+          <button @click="emit('codex', 'enemies')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">🐾 怪物</button>
+          <button @click="emit('codex', 'weapons')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">🔫 武器</button>
           <button @click="emit('upgrades')" class="px-4 py-2 bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-bold rounded-lg hover:bg-cyan-500/30 transition cursor-pointer">⏳ 永久升級 · ★{{ metaCoins }}</button>
         </div>
       </div>

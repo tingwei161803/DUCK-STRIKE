@@ -109,6 +109,15 @@ function floatStyle(f: any) {
         <div class="text-xs tracking-widest text-white/60">GRENADE · G</div>
       </div>
     </div>
+    <!-- 軍犬血量 -->
+    <div v-if="state.dogAlive" class="mt-2" style="width:150px">
+      <div class="flex justify-between text-[10px] tracking-widest text-amber-300/80 mb-0.5">
+        <span>🐕 軍犬</span><span class="tabular-nums">{{ state.dogHp }}</span>
+      </div>
+      <div class="h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div class="h-full bg-amber-400 transition-all" :style="{ width: Math.max(0, Math.min(100, state.dogHp / state.dogMax * 100)) + '%' }"></div>
+      </div>
+    </div>
   </div>
 
   <!-- 大絕充能條（F） -->

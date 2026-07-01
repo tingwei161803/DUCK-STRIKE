@@ -12,6 +12,7 @@ import MusicMenu from './ui/MusicMenu.vue'
 import Landing from './ui/Landing.vue'
 import Leaderboard from './ui/Leaderboard.vue'
 import MessageBoard from './ui/MessageBoard.vue'
+import Codex from './ui/Codex.vue'
 import { getPlayerName, submitScore, sendHeartbeat } from './game/api'
 import type { Input } from './game/input'
 
@@ -25,7 +26,8 @@ const bestScore = ref(0)
 const metaCoins = ref(0)
 const selectedDiff = ref<Difficulty>('normal')
 const showUpgrades = ref(false)
-const menuScreen = ref<'home' | 'leaderboard' | 'messages'>('home')
+const menuScreen = ref<'home' | 'leaderboard' | 'messages' | 'codex'>('home')
+const codexTab = ref<'enemies' | 'weapons'>('enemies')
 const inputRef = ref<Input | null>(null)
 const isMobile = ref(
   matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || new URLSearchParams(location.search).has('touch'),
@@ -62,6 +64,7 @@ function closeUpgrades() { showUpgrades.value = false; refreshMeta() }
 function buy(id: WeaponId) { game?.buy(id) }
 function buyArmor() { game?.buyArmor() }
 function buyMedkit() { game?.buyMedkit() }
+function buyDog() { game?.buyDog() }
 function nextWave() { game?.nextWave() }
 function resume() { game?.resume() }
 </script>
@@ -84,9 +87,11 @@ function resume() { game?.resume() }
   <!-- 主選單（首頁 / 排行榜 / 留言板） -->
   <template v-else-if="state.phase === 'menu'">
     <Landing v-if="menuScreen === 'home'" :best-score="bestScore" :meta-coins="metaCoins"
-      @start="start" @leaderboard="menuScreen = 'leaderboard'" @messages="menuScreen = 'messages'" @upgrades="showUpgrades = true" />
+      @start="start" @leaderboard="menuScreen = 'leaderboard'" @messages="menuScreen = 'messages'" @upgrades="showUpgrades = true"
+      @codex="(t) => { codexTab = t; menuScreen = 'codex' }" />
     <Leaderboard v-else-if="menuScreen === 'leaderboard'" @back="menuScreen = 'home'" />
     <MessageBoard v-else-if="menuScreen === 'messages'" @back="menuScreen = 'home'" />
+    <Codex v-else-if="menuScreen === 'codex'" :initial="codexTab" @back="menuScreen = 'home'" />
   </template>
 
   <!-- 永久升級面板 -->
@@ -99,7 +104,7 @@ function resume() { game?.resume() }
   <TouchControls v-if="isMobile && state.phase === 'playing' && inputRef" :input="inputRef" :state="state" />
 
   <!-- 購買選單 -->
-  <BuyMenu v-if="state.phase === 'buy'" :state="state" @buy="buy" @armor="buyArmor" @medkit="buyMedkit" @next="nextWave" />
+  <BuyMenu v-if="state.phase === 'buy'" :state="state" @buy="buy" @armor="buyArmor" @medkit="buyMedkit" @dog="buyDog" @next="nextWave" />
 
   <!-- 暫停 -->
   <div v-if="state.phase === 'paused'" class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-30">

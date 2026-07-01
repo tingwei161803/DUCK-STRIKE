@@ -7,7 +7,10 @@ import {
   Scene, Vector3, MeshBuilder, AbstractMesh, Mesh, Ray,
   StandardMaterial, Color3, TransformNode, AnimationGroup,
 } from '@babylonjs/core'
-import { ENEMIES, EnemyId, EnemyDef, WORLD } from './config'
+import { ENEMIES, EnemyId, EnemyDef, WORLD, DOG } from './config'
+
+// 軍犬給敵人 AI 的最小介面（引怪 + 承傷），避免與 companion.ts 產生循環相依
+export interface CompanionTarget { position: Vector3; alive: boolean; hurt(dmg: number): void }
 import { loadModel, instantiate, scaleForHeight, ModelInstance } from './model-loader'
 import { Player } from './player'
 import { GameMap } from './map'
@@ -176,8 +179,8 @@ export class Enemy {
     this.play('death', false)
   }
 
-  /** AI 更新。回傳對玩家造成的傷害（0=無）。 */
-  update(dt: number, player: Player, map: GameMap, scene: Scene): number {
+  /** AI 更新。回傳對玩家造成的傷害（0=無；攻擊軍犬的傷害走 companion.hurt）。 */
+  update(dt: number, player: Player, map: GameMap, scene: Scene, companion?: CompanionTarget | null): number {
     // 受擊閃白 + 兵種染色（overlay）
     if (this.overlayT > 0) {
       this.overlayT -= dt
@@ -199,14 +202,20 @@ export class Enemy {
     }
 
     const pos = this.inst.holder.position
-    const toPlayer = player.position.subtract(pos)
-    toPlayer.y = 0
-    const dist = toPlayer.length()
-    const dir = dist > 0.001 ? toPlayer.scale(1 / dist) : new Vector3(0, 0, 1)
-    // 面向玩家（轉 holder，避開 __root__ 四元數）
-    this.inst.holder.rotation.y = Math.atan2(dir.x, dir.z)
+    // 目標選擇：軍犬存活、且比玩家近又在引怪範圍內 → 轉去攻擊狗（引怪）
+    let tgt = player.position
+    let dogTarget = false
+    if (companion && companion.alive) {
+      const dp = Vector3.Distance(pos, player.position)
+      const dd = Vector3.Distance(pos, companion.position)
+      if (dd < dp && dd < DOG.aggroRange) { tgt = companion.position; dogTarget = true }
+    }
+    const to = tgt.subtract(pos); to.y = 0
+    const dist = to.length()
+    const dir = dist > 0.001 ? to.scale(1 / dist) : new Vector3(0, 0, 1)
+    this.inst.holder.rotation.y = Math.atan2(dir.x, dir.z)   // 面向目標
 
-    // 自爆兵：衝向玩家，接觸即引爆（傷害由 manager 處理）
+    // 自爆兵：衝向目標，接觸即引爆（傷害由 manager 處理）
     if (this.def.suicide) {
       if (dist <= this.def.range) { this.exploding = true; this.die(); return 0 }
       this.state = 'chase'
@@ -216,8 +225,10 @@ export class Enemy {
     }
 
     let dmgDealt = 0
+    const aimHi = dogTarget ? tgt.add(new Vector3(0, 0.5, 0)) : tgt   // 狗較矮，抬高瞄點避免打地
     const inRange = dist <= this.def.range
-    const los = this.hasLOS(pos, player.position, scene)
+    const los = this.hasLOS(pos, aimHi, scene)
+    const deal = (amount: number) => { if (dogTarget && companion) companion.hurt(amount); else dmgDealt += amount }
 
     if (inRange && los) {
       this.state = 'attack'
@@ -227,15 +238,15 @@ export class Enemy {
         this.attackCd = 60 / this.def.rpm
         if (this.def.melee) {
           // 近戰：貼身必中，揮刀音效，不射曳光
-          dmgDealt += this.def.damage * this.mods.dmg
+          deal(this.def.damage * this.mods.dmg)
           SFX.shoot('knife')
         } else {
           const hit = Math.random() < this.def.accuracy
-          if (hit) dmgDealt += this.def.damage * this.mods.dmg
-          // 可見曳光：命中=直射玩家，未命中=偏一點從旁掠過
+          if (hit) deal(this.def.damage * this.mods.dmg)
+          // 可見曳光：命中=直射目標，未命中=偏一點掠過
           if (this.shoot) {
             const from = pos.add(new Vector3(0, 1.4, 0)).add(dir.scale(0.5))
-            const to = player.position.clone()
+            const to = aimHi.clone()
             if (!hit) { to.x += (Math.random() - 0.5) * 2.4; to.y += (Math.random() - 0.5) * 1.2; to.z += (Math.random() - 0.5) * 2.4 }
             this.shoot(from, to)
           }
@@ -367,6 +378,7 @@ export class EnemyManager {
   onDamage?: (point: Vector3, amount: number, isHead: boolean) => void
   onBomberExplode?: (pos: Vector3, radius: number, dmg: number) => void
   onEnemyShot?: (from: Vector3, to: Vector3) => void
+  companionTarget: CompanionTarget | null = null   // 軍犬（引怪目標）
   bullets: BulletManager
 
   constructor(scene: Scene, player: Player, map: GameMap, onPlayerDamage: (d: number, from: Vector3 | null) => void, onKill: (e: Enemy, h: boolean) => void) {
@@ -427,7 +439,7 @@ export class EnemyManager {
     let lastFrom: Vector3 | null = null
     for (let i = this.alive.length - 1; i >= 0; i--) {
       const e = this.alive[i]
-      const d = e.update(dt, this.player, this.map, this.scene)
+      const d = e.update(dt, this.player, this.map, this.scene, this.companionTarget)
       if (d > 0) { dmg += d; lastFrom = e.inst.holder.position.clone() }
       // 自爆兵引爆（每隻只觸發一次）
       if (e.exploding) {
@@ -464,6 +476,26 @@ export class EnemyManager {
         if (res.killed) this.onKill(e, false)
       }
     }
+  }
+
+  /** 軍犬用：找最近的存活敵人（追咬目標）。 */
+  nearestEnemy(pos: Vector3, range: number): Enemy | null {
+    let best: Enemy | null = null
+    let bd = range
+    for (const e of this.alive) {
+      if (e.state === 'dead') continue
+      const d = Vector3.Distance(e.inst.holder.position, pos)
+      if (d < bd) { bd = d; best = e }
+    }
+    return best
+  }
+
+  /** 軍犬咬擊：對敵人造成傷害（走一般擊殺/飄字流程）。 */
+  biteDamage(e: Enemy, dmg: number) {
+    if (e.state === 'dead') return
+    const res = e.hurt(dmg, false, 1)
+    if (res.dealt > 0) this.onDamage?.(e.inst.holder.position.add(new Vector3(0, 1.4, 0)), res.dealt, false)
+    if (res.killed) this.onKill(e, false)
   }
 
   get aliveCount() { return this.alive.filter((e) => e.state !== 'dead').length }

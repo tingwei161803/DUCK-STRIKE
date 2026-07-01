@@ -14,10 +14,11 @@ import { WeaponSystem } from './weapons'
 import { EnemyManager, Enemy } from './enemies'
 import { PickupManager } from './pickups'
 import { GrenadeManager } from './grenades'
+import { Companion } from './companion'
 import { Meta } from './meta'
 import {
   WEAPONS, WeaponId, ENEMIES, EnemyId, waveSpec, ECONOMY, PLAYER,
-  DIFFICULTIES, Difficulty, DROP, KILLSTREAK, PickupKind, GRENADE, ULTIMATE, MEDKIT,
+  DIFFICULTIES, Difficulty, DROP, KILLSTREAK, PickupKind, GRENADE, ULTIMATE, MEDKIT, DOG,
 } from './config'
 import { SFX, initAudio } from './sound'
 
@@ -65,6 +66,9 @@ export interface GameState {
   ultCharge: number        // 大絕充能（秒，0~maxCharge）
   ultActive: boolean       // 大絕（時間緩慢）啟動中
   medkitBought: boolean    // 本次進軍火庫是否已買補血包（每次限 1）
+  dogAlive: boolean        // 軍犬是否存活
+  dogHp: number            // 軍犬血量
+  dogMax: number           // 軍犬血量上限
 }
 
 export function createGameState(): GameState {
@@ -75,6 +79,7 @@ export function createGameState(): GameState {
     floats: [],
     difficulty: 'normal', frenzyT: 0, isBossWave: false, damageDir: 0, damageDirAt: 0,
     metaCoins: 0, board: [], runCoins: 0, grenades: 0, ultCharge: 0, ultActive: false, medkitBought: false,
+    dogAlive: false, dogHp: 0, dogMax: DOG.maxHp,
   }
 }
 
@@ -89,6 +94,7 @@ export class Game {
   enemies!: EnemyManager
   pickups!: PickupManager
   grenades!: GrenadeManager
+  companion!: Companion
   state: GameState
 
   private spawnQueue: EnemyId[] = []
@@ -155,6 +161,15 @@ export class Game {
 
     this.grenades = new GrenadeManager(s, this.map, (pos) => this.grenadeExplode(pos))
     await this.grenades.preload()
+
+    // 軍犬：找怪咬怪；並登記為敵人的引怪目標
+    this.companion = new Companion(
+      s, this.player, this.map,
+      (pos, range) => this.enemies.nearestEnemy(pos, range),
+      (e, dmg) => this.enemies.biteDamage(e, dmg),
+    )
+    await this.companion.preload()
+    this.enemies.companionTarget = this.companion
     this.state.loadPct = 80
 
     this.weapons = new WeaponSystem(
@@ -251,6 +266,10 @@ export class Game {
       this.player.addShake(0.6)
     } else if (pd < radius * 1.8) {
       this.player.addShake(0.3 * (1 - pd / (radius * 1.8)))
+    }
+    if (this.companion.alive) {
+      const dd = Vector3.Distance(this.companion.position, pos)
+      if (dd < radius) this.companion.hurt(dmg * (1 - dd / radius))
     }
     this.addFloat(pos.add(new Vector3(0, 1.4, 0)), '💥', '#ff7a00', true)
   }
@@ -352,6 +371,9 @@ export class Game {
     this.enemies.reset()
     this.pickups.clear()
     this.grenades.clear()
+    this.companion.clear()
+    this.state.dogAlive = false
+    this.state.dogHp = 0
     this.grenadeCd = 0
     this.state.grenades = GRENADE.start
     this.state.ultCharge = 0
@@ -370,6 +392,7 @@ export class Game {
   private beginWave(wave: number) {
     // 進入新一波補充手榴彈（第 1 波用起始量，不額外補）
     if (wave > 1) this.state.grenades = Math.min(GRENADE.max, this.state.grenades + GRENADE.refillPerWave)
+    if (this.companion.alive) this.companion.healToFull()   // 軍犬每波回滿血
     // 隨波數成長：敵人越後面越強（血量 +12%/波、傷害 +7%/波、速度 +2%/波 上限 1.5），疊乘在難度基準上
     const hpScale = 1 + (wave - 1) * 0.12
     const dmgScale = 1 + (wave - 1) * 0.07
@@ -495,6 +518,21 @@ export class Game {
     return true
   }
 
+  // 軍犬：最多 1 隻，死掉要重買。在玩家附近生成。
+  buyDog(): boolean {
+    if (this.companion.alive || this.player.money < DOG.price) return false
+    this.player.money -= DOG.price
+    const cam = this.player.camera
+    const fwd = cam.getForwardRay().direction
+    const spawn = this.player.position.add(new Vector3(fwd.x, 0, fwd.z).normalize().scale(2.5))
+    this.companion.spawn(new Vector3(spawn.x, 0, spawn.z))
+    this.state.money = this.player.money
+    this.state.dogAlive = true
+    this.state.dogHp = DOG.maxHp
+    SFX.buy()
+    return true
+  }
+
   // 補血包：回 MEDKIT.heal，每次進軍火庫限購 1 個
   buyMedkit(): boolean {
     if (this.state.medkitBought || this.player.hp >= this.player.maxHp || this.player.money < MEDKIT.price) return false
@@ -558,6 +596,7 @@ export class Game {
       this.enemies.update(wdt)
       this.pickups.update(wdt)
       this.grenades.update(wdt)
+      this.companion.update(dt)          // 軍犬（同伴）維持全速，不受大絕時間縮放
       this.effects.update(wdt)
       this.tickWave(dt)
       this.syncStatusHud()
@@ -625,6 +664,8 @@ export class Game {
 
   private syncStatusHud() {
     this.state.hp = Math.round(this.player.hp)
+    this.state.dogAlive = this.companion.alive
+    this.state.dogHp = Math.round(this.companion.hp)
     this.state.armor = Math.round(this.player.armor)
     this.state.reloading = this.weapons.isReloading
     this.state.aiming = this.player.aiming

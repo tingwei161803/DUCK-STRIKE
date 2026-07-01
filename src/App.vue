@@ -13,6 +13,7 @@ import Landing from './ui/Landing.vue'
 import Leaderboard from './ui/Leaderboard.vue'
 import MessageBoard from './ui/MessageBoard.vue'
 import Codex from './ui/Codex.vue'
+import OnlineHistory from './ui/OnlineHistory.vue'
 import { getPlayerName, submitScore, sendHeartbeat } from './game/api'
 import type { Input } from './game/input'
 
@@ -26,7 +27,7 @@ const bestScore = ref(0)
 const metaCoins = ref(0)
 const selectedDiff = ref<Difficulty>('normal')
 const showUpgrades = ref(false)
-const menuScreen = ref<'home' | 'leaderboard' | 'messages' | 'codex'>('home')
+const menuScreen = ref<'home' | 'leaderboard' | 'messages' | 'codex' | 'online'>('home')
 const codexTab = ref<'enemies' | 'weapons'>('enemies')
 const inputRef = ref<Input | null>(null)
 const isMobile = ref(
@@ -88,10 +89,11 @@ function resume() { game?.resume() }
   <template v-else-if="state.phase === 'menu'">
     <Landing v-if="menuScreen === 'home'" :best-score="bestScore" :meta-coins="metaCoins"
       @start="start" @leaderboard="menuScreen = 'leaderboard'" @messages="menuScreen = 'messages'" @upgrades="showUpgrades = true"
-      @codex="(t) => { codexTab = t; menuScreen = 'codex' }" />
+      @codex="(t) => { codexTab = t; menuScreen = 'codex' }" @online="menuScreen = 'online'" />
     <Leaderboard v-else-if="menuScreen === 'leaderboard'" @back="menuScreen = 'home'" />
     <MessageBoard v-else-if="menuScreen === 'messages'" @back="menuScreen = 'home'" />
     <Codex v-else-if="menuScreen === 'codex'" :initial="codexTab" @back="menuScreen = 'home'" />
+    <OnlineHistory v-else-if="menuScreen === 'online'" @back="menuScreen = 'home'" />
   </template>
 
   <!-- 永久升級面板 -->

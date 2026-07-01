@@ -357,7 +357,7 @@ export class Game {
     this.player.speedMult = b.speedMult
     this.player.damageMult = b.damageMult
     this.player.spawn(new Vector3(0, PLAYER.height, -40))
-    this.player.armor = b.armor
+    this.player.armor = Math.max(100, b.armor)   // 預設開局護甲全滿
     this.player.money = ECONOMY.startMoney + b.startMoney
     this.state.money = this.player.money
     this.state.maxHp = this.player.maxHp

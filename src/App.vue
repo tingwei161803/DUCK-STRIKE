@@ -8,12 +8,12 @@ import HUD from './ui/HUD.vue'
 import BuyMenu from './ui/BuyMenu.vue'
 import UpgradeMenu from './ui/UpgradeMenu.vue'
 import TouchControls from './ui/TouchControls.vue'
-import MusicMenu from './ui/MusicMenu.vue'
 import Landing from './ui/Landing.vue'
 import Leaderboard from './ui/Leaderboard.vue'
 import MessageBoard from './ui/MessageBoard.vue'
 import Codex from './ui/Codex.vue'
 import OnlineHistory from './ui/OnlineHistory.vue'
+import { Music } from './game/music'
 import { getPlayerName, submitScore, sendHeartbeat } from './game/api'
 import type { Input } from './game/input'
 
@@ -43,6 +43,7 @@ onMounted(async () => {
   inputRef.value = game.input
   await game.init()
   refreshMeta()
+  Music.start(3)   // 固定播放「電子」（音訊於首次互動解鎖），不提供切換
   tick()
 })
 
@@ -72,9 +73,6 @@ function resume() { game?.resume() }
 
 <template>
   <canvas id="renderCanvas" ref="canvas"></canvas>
-
-  <!-- 右上角：背景音樂選單（5 種曲風 + 關閉），loading 以外皆顯示 -->
-  <MusicMenu v-if="state.phase !== 'loading'" />
 
   <!-- 載入中 -->
   <div v-if="state.phase === 'loading'" class="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-50">

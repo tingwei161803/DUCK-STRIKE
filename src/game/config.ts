@@ -54,7 +54,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   knife: {
     id: 'knife', name: '軍刀', model: 'knife_1', melee: true,
     damage: 55, rpm: 120, auto: false, magSize: 0, reserve: 0, reloadTime: 0,
-    spreadHip: 0, spreadAim: 0, pellets: 1, range: 2.4, recoil: 0, headMult: 1.5, price: 0,
+    spreadHip: 0, spreadAim: 0, pellets: 1, range: 3.4, recoil: 0, headMult: 1.5, price: 0,
     vm: { pos: [0.16, -0.16, 0.34], rot: [0, -Math.PI / 2, 0], scale: 0.9, muzzle: [0, 0, 0] },
   },
   pistol: {

@@ -25,7 +25,8 @@ function ensure() {
   hemi.intensity = 1.0; hemi.groundColor = new Color3(0.3, 0.3, 0.35)
   const dir = new DirectionalLight('pd', new Vector3(-0.5, -1, -0.4), scene)
   dir.intensity = 1.0
-  camera = new ArcRotateCamera('pc', -Math.PI / 2.3, Math.PI / 2.5, 4, Vector3.Zero(), scene)
+  // alpha 放到 +Z 側 → 看模型正面（原本 -Z 側看到的是背面）；beta 稍微俯視
+  camera = new ArcRotateCamera('pc', Math.PI / 2.2, Math.PI / 2.4, 4, Vector3.Zero(), scene)
 }
 
 async function renderOne(url: string): Promise<string> {

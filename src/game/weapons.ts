@@ -31,6 +31,7 @@ interface WeaponInstance {
 }
 
 const GUN_TARGET_LEN = 0.34 // 視角模型統一長度（公尺，最長邊）
+const MELEE_SWING = 0.22    // 近戰揮舞動畫時長（秒）
 
 export class WeaponSystem {
   scene: Scene
@@ -52,6 +53,7 @@ export class WeaponSystem {
   private vmRoot: TransformNode
   private swapping = 0
   private bobPhase = 0         // 走路擺動相位
+  private swingT = 0           // 近戰揮舞計時
 
   onAmmoChange?: () => void
   onWeaponChange?: () => void
@@ -186,12 +188,35 @@ export class WeaponSystem {
     const s = this.cur
     SFX.shoot('knife')
     this.vmKick = 0.08
+    this.swingT = MELEE_SWING     // 觸發揮舞動畫
     const cam = this.player.camera
-    const hit = this.resolveHit(cam.position.clone(), cam.getForwardRay().direction.normalize(), s.def.range)
-    if (hit) {
-      const isEnemy = !!(hit.mesh.metadata && hit.mesh.metadata.enemyRef)
-      this.effects.impact(hit.point, hit.normal, isEnemy ? 'enemy' : 'world')
-      this.dealDamage(hit.mesh, s.def.damage * this.player.damageMult, s.def.headMult, hit.point)
+    const origin = cam.position.clone()
+    const fwd = cam.getForwardRay().direction.normalize()
+    // 揮砍範圍：中心 + 上下左右偏移射線組成小錐形，較易掃到偏一點的敵人
+    const right = Vector3.Cross(fwd, Vector3.Up()).normalize()
+    const up = Vector3.Cross(right, fwd).normalize()
+    const cone = 0.26
+    const dirs = [
+      fwd,
+      fwd.add(right.scale(cone)).normalize(), fwd.add(right.scale(-cone)).normalize(),
+      fwd.add(up.scale(cone)).normalize(), fwd.add(up.scale(-cone)).normalize(),
+    ]
+    let best: ReturnType<HitResolver> = null
+    let bestEnemy = false
+    let bestDist = Infinity
+    for (const d of dirs) {
+      const h = this.resolveHit(origin, d, s.def.range)
+      if (!h) continue
+      const isEnemy = !!(h.mesh.metadata && h.mesh.metadata.enemyRef)
+      const dd = Vector3.Distance(origin, h.point)
+      if (isEnemy && !bestEnemy) { best = h; bestEnemy = true; bestDist = dd }        // 優先第一個敵人
+      else if (isEnemy && bestEnemy && dd < bestDist) { best = h; bestDist = dd }
+      else if (!bestEnemy && dd < bestDist) { best = h; bestDist = dd }
+    }
+    if (best) {
+      const isEnemy = !!(best.mesh.metadata && best.mesh.metadata.enemyRef)
+      this.effects.impact(best.point, best.normal, isEnemy ? 'enemy' : 'world')
+      this.dealDamage(best.mesh, s.def.damage * this.player.damageMult, s.def.headMult, best.point)
     }
   }
 
@@ -293,6 +318,14 @@ export class WeaponSystem {
       holder.position.x += (tx - holder.position.x) * Math.min(1, dt * 14)
       holder.position.y += (ty - holder.position.y) * Math.min(1, dt * 14)
       holder.position.z += (tz - holder.position.z) * Math.min(1, dt * 18)
+      // 近戰揮舞：對視角模型加一段弧線旋轉（斜劈），非近戰維持原朝向
+      if (s.def.melee) {
+        if (this.swingT > 0) this.swingT = Math.max(0, this.swingT - dt)
+        const p = this.swingT > 0 ? 1 - this.swingT / MELEE_SWING : 0
+        const sw = Math.sin(Math.min(1, p) * Math.PI)   // 0→1→0 弧線
+        const r = s.def.vm.rot
+        holder.rotation.set(r[0] + sw * 1.15, r[1] + sw * 0.5, r[2] - sw * 1.25)
+      }
       // 開鏡時藏槍（避免擋準心）
       const hideForScope = !!s.def.scope && this.player.aiming
       holder.setEnabled(!hideForScope)

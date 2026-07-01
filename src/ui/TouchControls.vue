@@ -88,33 +88,51 @@ function nextW() { props.input.nextWeapon() }
 
 // ---- 陀螺儀看視（相對角度差餵進 addLook；與拖曳看視並存）----
 const GYRO_SENS = 8          // 每度轉動 ≈ 8px 看視（約 1:1 視角）
-const gyroOn = ref(false)
+const gyroOn = ref(false)    // 已啟用（授權通過、已掛監聽）
+const gyroLive = ref(false)  // 已收到感測資料
+const gyroMsg = ref('')      // 錯誤/狀態提示
 let gyroLast: { a: number; b: number } | null = null
+
 function onOrient(e: DeviceOrientationEvent) {
-  if (e.alpha == null || e.beta == null) return
+  if (e.alpha == null && e.beta == null && e.gamma == null) return
+  gyroLive.value = true
+  const a = e.alpha ?? 0, b = e.beta ?? 0
   if (gyroLast) {
-    let dYaw = e.alpha - gyroLast.a
-    if (dYaw > 180) dYaw -= 360; else if (dYaw < -180) dYaw += 360   // 指北角度環繞處理
-    const dPitch = e.beta - gyroLast.b
+    let dYaw = a - gyroLast.a
+    if (dYaw > 180) dYaw -= 360; else if (dYaw < -180) dYaw += 360   // 指北角度環繞
+    const dPitch = b - gyroLast.b
     props.input.addLook(-dYaw * GYRO_SENS, dPitch * GYRO_SENS)
   }
-  gyroLast = { a: e.alpha, b: e.beta }
+  gyroLast = { a, b }
 }
 async function toggleGyro() {
   if (gyroOn.value) {
     window.removeEventListener('deviceorientation', onOrient)
-    gyroLast = null; gyroOn.value = false
+    window.removeEventListener('deviceorientationabsolute', onOrient as EventListener)
+    gyroLast = null; gyroOn.value = false; gyroLive.value = false; gyroMsg.value = ''
     return
   }
-  const DOE = (window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } }).DeviceOrientationEvent
+  gyroMsg.value = ''
+  const w = window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } }
+  if (typeof w.DeviceOrientationEvent === 'undefined') { gyroMsg.value = '此裝置不支援陀螺儀'; return }
+  const DOE = w.DeviceOrientationEvent
   if (DOE && typeof DOE.requestPermission === 'function') {   // iOS 13+ 需授權
-    try { if ((await DOE.requestPermission()) !== 'granted') return } catch { return }
+    try {
+      const res = await DOE.requestPermission()
+      if (res !== 'granted') { gyroMsg.value = '未授權（請允許動作與方向存取）'; return }
+    } catch { gyroMsg.value = '授權失敗（需 HTTPS 並由點擊觸發）'; return }
   }
   gyroLast = null
   window.addEventListener('deviceorientation', onOrient)
+  window.addEventListener('deviceorientationabsolute', onOrient as EventListener)   // 部分 Android 用 absolute
   gyroOn.value = true
+  // 3 秒內若完全沒收到資料 → 提示
+  setTimeout(() => { if (gyroOn.value && !gyroLive.value) gyroMsg.value = '沒有感測資料（裝置或瀏覽器未提供）' }, 3000)
 }
-onUnmounted(() => window.removeEventListener('deviceorientation', onOrient))
+onUnmounted(() => {
+  window.removeEventListener('deviceorientation', onOrient)
+  window.removeEventListener('deviceorientationabsolute', onOrient as EventListener)
+})
 </script>
 
 <template>
@@ -167,11 +185,13 @@ onUnmounted(() => window.removeEventListener('deviceorientation', onOrient))
       style="right:212px;bottom:110px;width:56px;height:56px;touch-action:none"
       @pointerdown.prevent="nextW">切槍</button>
 
-    <!-- 陀螺儀看視開關 -->
-    <button class="absolute rounded-full border-2 text-white text-xs font-bold select-none"
-      :class="gyroOn ? 'bg-green-500/50 border-green-300' : 'bg-black/35 border-white/30'"
-      style="right:212px;bottom:180px;width:56px;height:56px;touch-action:none"
-      @pointerdown.prevent="toggleGyro">陀螺儀</button>
+    <!-- 陀螺儀看視開關（用 click 以符合 iOS 授權手勢） -->
+    <button class="absolute rounded-full border-2 text-white text-[11px] font-bold select-none leading-tight"
+      :class="gyroLive ? 'bg-green-500/60 border-green-300' : gyroOn ? 'bg-yellow-500/50 border-yellow-300' : 'bg-black/35 border-white/30'"
+      style="right:206px;bottom:180px;width:60px;height:60px;touch-action:none"
+      @click="toggleGyro">{{ gyroOn ? (gyroLive ? '陀螺✓' : '等待…') : '陀螺儀' }}</button>
+    <div v-if="gyroMsg" class="absolute text-[11px] text-rose-300 text-right"
+      style="right:20px;bottom:250px;width:260px">{{ gyroMsg }}</div>
 
     <!-- 手榴彈（顯示剩餘數） -->
     <button class="absolute rounded-full border-2 flex flex-col items-center justify-center leading-none active:scale-95"

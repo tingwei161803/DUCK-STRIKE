@@ -67,3 +67,7 @@ export async function deleteMessage(id: number, key: string): Promise<boolean> {
 export function sendHeartbeat() { void postJson('/api/heartbeat', { deviceId: getDeviceId() }) }
 export function fetchOnline(): Promise<{ online: number; peak: number } | null> { return getJson('/api/online') }
 export function fetchStats(): Promise<GlobalStats | null> { return getJson<GlobalStats>('/api/stats') }
+export interface HourPeak { hour: number; peak: number }
+export function fetchOnlineHistory(days = 1): Promise<HourPeak[] | null> {
+  return getJson<HourPeak[]>(`/api/online-history?days=${days}`)
+}

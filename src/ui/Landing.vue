@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { THEME, DIFFICULTIES, type Difficulty } from '../game/config'
-import { getPlayerName, setPlayerName, fetchOnline, fetchStats, type GlobalStats } from '../game/api'
+import { getPlayerName, setPlayerName, fetchOnline, fetchStats, fetchOnlineHistory, type GlobalStats, type HourPeak } from '../game/api'
 
 const props = defineProps<{ bestScore: number; metaCoins: number }>()
 const emit = defineEmits<{
@@ -20,7 +20,19 @@ const online = ref<number | null>(null)
 const peak = ref(0)
 const stats = reactive<GlobalStats>({ plays: 0, totalKills: 0, peakOnline: 0 })
 const hasStats = ref(false)
+const history = ref<HourPeak[]>([])
+const hasHistory = ref(false)
 let timer = 0
+
+// 近 24 小時：補齊每小時桶（無資料補 0）
+const bars = computed(() => {
+  const map = new Map(history.value.map((h) => [h.hour, h.peak]))
+  const nowHour = Math.floor(Date.now() / 3_600_000)
+  const arr: { hour: number; peak: number }[] = []
+  for (let h = nowHour - 23; h <= nowHour; h++) arr.push({ hour: h, peak: map.get(h) || 0 })
+  return arr
+})
+const maxPeak = computed(() => Math.max(1, ...bars.value.map((b) => b.peak)))
 
 function saveName() { setPlayerName(name.value); name.value = getPlayerName() }
 function onStart() { if (!canStart.value) return; saveName(); emit('start', selectedDiff.value) }
@@ -34,6 +46,8 @@ onMounted(async () => {
   timer = window.setInterval(refreshOnline, 60000)
   const s = await fetchStats()
   if (s) { Object.assign(stats, s); hasStats.value = true }
+  const h = await fetchOnlineHistory(1)
+  if (h) { history.value = h; hasHistory.value = true }
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
@@ -97,6 +111,18 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <div class="bg-white/5 rounded-lg py-2"><div class="text-xl font-black text-red-300 tabular-nums">{{ hasStats ? stats.totalKills : '—' }}</div><div class="text-[10px] text-white/50 tracking-widest">總擊殺</div></div>
         <div class="bg-white/5 rounded-lg py-2"><div class="text-xl font-black text-lime-300 tabular-nums">{{ hasStats ? stats.peakOnline : (peak || '—') }}</div><div class="text-[10px] text-white/50 tracking-widest">最高在線</div></div>
         <div class="bg-white/5 rounded-lg py-2"><div class="text-xl font-black text-white tabular-nums">{{ bestScore || '—' }}</div><div class="text-[10px] text-white/50 tracking-widest">你的最高分</div></div>
+      </div>
+
+      <!-- 近 24 小時歷史在線 -->
+      <div v-if="hasHistory" class="mt-4 mx-auto max-w-md">
+        <div class="text-[10px] text-white/40 tracking-widest mb-1 text-center">近 24 小時在線峰值（最高 {{ maxPeak }} 人）</div>
+        <div class="flex items-end justify-center gap-0.5 h-16 bg-white/5 rounded-lg px-2 py-1.5">
+          <div v-for="(b, i) in bars" :key="i"
+            class="flex-1 rounded-sm min-h-[2px]"
+            :class="b.peak > 0 ? 'bg-lime-400/70' : 'bg-white/10'"
+            :style="{ height: Math.max(4, (b.peak / maxPeak) * 100) + '%' }"
+            :title="b.peak + ' 人'"></div>
+        </div>
       </div>
 
       <!-- 玩法說明 -->

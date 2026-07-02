@@ -63,3 +63,25 @@ export function sanitizeText(v: unknown, maxLen: number): string {
 }
 
 export const DIFFICULTIES = ['easy', 'normal', 'hard', 'hell']
+
+/**
+ * 輕量限流（D1）：同一 key 在 windowMs 內超過 max 次 → 回 true（擋下）。
+ * *.pages.dev 無法用 WAF 規則，故在 Function 內以 D1 計數。失敗時放行（不因限流故障擋掉正常玩家）。
+ */
+export async function rateLimited(env: Env, key: string, max: number, windowMs: number): Promise<boolean> {
+  const now = Date.now()
+  try {
+    const row = await env.DB.prepare('SELECT n, reset FROM ratelimit WHERE k=?').bind(key).first<{ n: number; reset: number }>()
+    if (!row || now > row.reset) {
+      await env.DB.prepare(
+        'INSERT INTO ratelimit (k,n,reset) VALUES (?,1,?) ON CONFLICT(k) DO UPDATE SET n=1, reset=?',
+      ).bind(key, now + windowMs, now + windowMs).run()
+      return false
+    }
+    if (row.n >= max) return true
+    await env.DB.prepare('UPDATE ratelimit SET n=n+1 WHERE k=?').bind(key).run()
+    return false
+  } catch {
+    return false
+  }
+}

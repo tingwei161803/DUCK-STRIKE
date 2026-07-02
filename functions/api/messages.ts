@@ -1,5 +1,5 @@
 // /api/messages — 留言板：GET 取最新 100 則、POST 發表/回覆、DELETE 刪除（需管理鍵）。
-import { Ctx, json, clampInt, sanitizeText, verifyTurnstile } from './_lib'
+import { Ctx, json, clampInt, sanitizeText, verifyTurnstile, rateLimited } from './_lib'
 
 export const onRequestGet = async ({ env }: Ctx): Promise<Response> => {
   try {
@@ -13,9 +13,12 @@ export const onRequestGet = async ({ env }: Ctx): Promise<Response> => {
 }
 
 export const onRequestPost = async ({ request, env }: Ctx): Promise<Response> => {
+  const ip = request.headers.get('CF-Connecting-IP') || 'anon'
+  if (await rateLimited(env, 'msg:' + ip, 5, 60_000)) return json({ ok: false, error: 'rate' }, 429)
+
   let b: any
   try { b = await request.json() } catch { return json({ ok: false }, 400) }
-  if (!(await verifyTurnstile(b.token, env.TURNSTILE_SECRET, request.headers.get('CF-Connecting-IP')))) {
+  if (!(await verifyTurnstile(b.token, env.TURNSTILE_SECRET, ip))) {
     return json({ ok: false, error: 'turnstile' }, 403)
   }
   const name = sanitizeText(b.name, 16)

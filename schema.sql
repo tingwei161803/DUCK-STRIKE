@@ -48,3 +48,10 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_messages_id ON messages(id DESC);
+
+-- 輕量限流計數（key = 端點:IP；reset 為視窗到期時間 ms）
+CREATE TABLE IF NOT EXISTS ratelimit (
+  k     TEXT    PRIMARY KEY,
+  n     INTEGER NOT NULL DEFAULT 0,
+  reset INTEGER NOT NULL DEFAULT 0
+);

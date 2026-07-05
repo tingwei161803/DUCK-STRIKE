@@ -64,8 +64,8 @@ function restart() { game?.start(selectedDiff.value) }
 function backToMenu() { refreshMeta(); menuScreen.value = 'home'; state.phase = 'menu' }
 function closeUpgrades() { showUpgrades.value = false; refreshMeta() }
 function buy(id: WeaponId) { game?.buy(id) }
-function buyArmor() { game?.buyArmor() }
-function buyMedkit() { game?.buyMedkit() }
+function buyArmor(n: number | 'max' = 1) { game?.buyArmor(n) }
+function buyMedkit(n: number | 'max' = 1) { game?.buyMedkit(n) }
 function buyDog() { game?.buyDog() }
 function nextWave() { game?.nextWave() }
 function resume() { game?.resume() }

@@ -504,11 +504,14 @@ export class Game {
     return true
   }
 
-  // 護甲：可疊加，每次購買 +100，無上限
-  buyArmor(): boolean {
-    if (this.player.money < 650) return false
-    this.player.money -= 650
-    this.player.armor += 100
+  // 護甲：可疊加，每件 +100 無上限；count 批量購買（'max' = 錢包買好買滿）
+  buyArmor(count: number | 'max' = 1): boolean {
+    const price = 650
+    const afford = Math.floor(this.player.money / price)
+    const n = Math.min(count === 'max' ? afford : count, afford)
+    if (n <= 0) return false
+    this.player.money -= price * n
+    this.player.armor += 100 * n
     this.state.money = this.player.money
     this.state.armor = Math.round(this.player.armor)
     SFX.buy()
@@ -584,11 +587,13 @@ export class Game {
     return true
   }
 
-  // 補血包：可疊加購買；超過血量上限的部分直接提升上限（總血量越買越多）
-  buyMedkit(): boolean {
-    if (this.player.money < MEDKIT.price) return false
-    this.player.money -= MEDKIT.price
-    this.player.hp += MEDKIT.heal
+  // 補血包：可疊加購買；溢出提升血量上限。count 批量購買（'max' = 錢包買好買滿）
+  buyMedkit(count: number | 'max' = 1): boolean {
+    const afford = Math.floor(this.player.money / MEDKIT.price)
+    const n = Math.min(count === 'max' ? afford : count, afford)
+    if (n <= 0) return false
+    this.player.money -= MEDKIT.price * n
+    this.player.hp += MEDKIT.heal * n
     if (this.player.hp > this.player.maxHp) this.player.maxHp = this.player.hp
     this.state.maxHp = this.player.maxHp
     this.state.money = this.player.money

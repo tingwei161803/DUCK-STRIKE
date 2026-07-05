@@ -4,7 +4,13 @@ import type { GameState } from '../game/game'
 import { WEAPONS, WeaponId, MEDKIT, DOG } from '../game/config'
 
 const props = defineProps<{ state: GameState }>()
-const emit = defineEmits<{ (e: 'buy', id: WeaponId): void; (e: 'armor'): void; (e: 'medkit'): void; (e: 'dog'): void; (e: 'next'): void }>()
+const emit = defineEmits<{
+  (e: 'buy', id: WeaponId): void
+  (e: 'armor', n: number | 'max'): void
+  (e: 'medkit', n: number | 'max'): void
+  (e: 'dog'): void
+  (e: 'next'): void
+}>()
 
 const canMedkit = computed(() => props.state.money >= MEDKIT.price)
 const canDog = computed(() => props.state.dogCount < DOG.maxCount && props.state.money >= DOG.price)
@@ -24,6 +30,10 @@ const items = computed(() =>
   }),
 )
 const armorCost = 650
+// 批量購買選項（護甲/補血包共用）
+const bulkBtns: { label: string; n: number | 'max' }[] = [
+  { label: '×1', n: 1 }, { label: '×10', n: 10 }, { label: 'MAX', n: 'max' },
+]
 </script>
 
 <template>
@@ -60,25 +70,38 @@ const armorCost = 650
       </div>
 
       <div class="mt-4 flex items-center gap-3">
-        <button @click="emit('armor')"
-          :disabled="state.money < armorCost"
-          class="flex-1 p-3 rounded-xl border border-sky-500/40 bg-sky-900/20 text-left transition"
-          :class="state.money >= armorCost ? 'hover:border-sky-400 hover:bg-sky-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
+        <div class="flex-1 p-3 rounded-xl border border-sky-500/40 bg-sky-900/20 text-left transition"
+          :class="state.money >= armorCost ? '' : 'opacity-50'">
           <div class="flex justify-between">
             <span class="font-bold text-sky-200">護甲 <span class="text-sky-400/70 text-[11px]">{{ state.armor }}</span></span>
             <span class="font-black text-sky-300">${{ armorCost }}</span>
           </div>
-          <div class="text-[11px] text-white/50 mt-1">吸收 50% 傷害，每次 +100 可疊加</div>
-        </button>
-        <button @click="emit('medkit')" :disabled="!canMedkit"
-          class="flex-1 p-3 rounded-xl border border-green-500/40 bg-green-900/20 text-left transition"
-          :class="canMedkit ? 'hover:border-green-400 hover:bg-green-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
+          <div class="text-[11px] text-white/50 mt-1 mb-1.5">吸收 50% 傷害，每件 +100 可疊加</div>
+          <div class="flex gap-1">
+            <button v-for="b in bulkBtns" :key="'a' + b.label" @click="emit('armor', b.n)"
+              :disabled="state.money < armorCost"
+              class="flex-1 py-1 rounded-md text-[11px] font-bold transition"
+              :class="state.money >= armorCost ? 'bg-sky-500/25 text-sky-200 hover:bg-sky-400/40 cursor-pointer' : 'bg-white/5 text-white/30 cursor-not-allowed'">
+              {{ b.label }}
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 p-3 rounded-xl border border-green-500/40 bg-green-900/20 text-left transition"
+          :class="canMedkit ? '' : 'opacity-50'">
           <div class="flex justify-between">
             <span class="font-bold text-green-200">補血包 <span class="text-green-400/70 text-[11px]">{{ state.hp }}/{{ state.maxHp }}</span></span>
             <span class="font-black text-green-300">${{ MEDKIT.price }}</span>
           </div>
-          <div class="text-[11px] text-white/50 mt-1">+{{ MEDKIT.heal }} HP 可疊加，溢出提升血量上限</div>
-        </button>
+          <div class="text-[11px] text-white/50 mt-1 mb-1.5">+{{ MEDKIT.heal }} HP 可疊加，溢出提升血量上限</div>
+          <div class="flex gap-1">
+            <button v-for="b in bulkBtns" :key="'m' + b.label" @click="emit('medkit', b.n)"
+              :disabled="!canMedkit"
+              class="flex-1 py-1 rounded-md text-[11px] font-bold transition"
+              :class="canMedkit ? 'bg-green-500/25 text-green-200 hover:bg-green-400/40 cursor-pointer' : 'bg-white/5 text-white/30 cursor-not-allowed'">
+              {{ b.label }}
+            </button>
+          </div>
+        </div>
         <button @click="emit('dog')" :disabled="!canDog"
           class="flex-1 p-3 rounded-xl border border-amber-500/40 bg-amber-900/20 text-left transition"
           :class="canDog ? 'hover:border-amber-400 hover:bg-amber-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">

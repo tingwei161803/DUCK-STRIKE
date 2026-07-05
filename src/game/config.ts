@@ -23,7 +23,7 @@ export const PLAYER = {
   regenRate: 3,         // hp/秒（慢速回血）
 }
 
-export type WeaponId = 'knife' | 'pistol' | 'smg' | 'ak' | 'shotgun' | 'sniper'
+export type WeaponId = 'knife' | 'pistol' | 'smg' | 'ak' | 'shotgun' | 'sniper' | 'supersniper'
 
 export interface WeaponDef {
   id: WeaponId
@@ -87,6 +87,12 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     spreadHip: 0.12, spreadAim: 0.0008, pellets: 1, range: 200, recoil: 0.05, headMult: 1.8, scope: 22, price: 4750,
     vm: { pos: [0.17, -0.18, 0.38], rot: [0, -Math.PI / 2, 0], scale: 1.25, muzzle: [0, 0, 0] },
   },
+  supersniper: {
+    id: 'supersniper', name: '超級狙擊槍', model: 'sniper',   // 沿用狙擊槍模型
+    damage: 200, rpm: 500, auto: true, magSize: 80, reserve: 320, reloadTime: 0.6,
+    spreadHip: 0, spreadAim: 0, pellets: 1, range: 200, recoil: 0, headMult: 1.8, scope: 22, price: 50000,
+    vm: { pos: [0.17, -0.18, 0.38], rot: [0, -Math.PI / 2, 0], scale: 1.25, muzzle: [0, 0, 0] },
+  },
 }
 
 export type EnemyId = 'grunt' | 'rusher' | 'hazmat' | 'bomber' | 'boss' | 'slasher'
@@ -126,13 +132,13 @@ export const MEDKIT = { price: 500, heal: 50 }
 // 軍犬同伴（軍火庫購買，最多 maxCount 隻，死掉可再買）：引怪 + 咬怪
 export const DOG = {
   price: 1400,
+  maxCount: 100,       // 同時存活上限
   maxHp: 350,          // 高血量，不易死
   bite: 35,            // 每次咬擊傷害
   biteCd: 0.6,         // 咬擊冷卻（秒）
   biteRange: 2.4,      // 咬擊距離
   seekRange: 32,       // 主動找怪範圍
   aggroRange: 16,      // 此範圍內、且比玩家近的敵人會轉去攻擊狗（引怪）
-  maxCount: 100,       // 同時存活上限
   speed: 7.6,          // 移動速度（追得上快敵）
   followDist: 3.5,     // 無怪時跟在玩家身邊的距離
   regenDelay: 4,       // 脫戰回血延遲（秒）

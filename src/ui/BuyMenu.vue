@@ -9,7 +9,7 @@ const emit = defineEmits<{ (e: 'buy', id: WeaponId): void; (e: 'armor'): void; (
 const canMedkit = computed(() => !props.state.medkitBought && props.state.hp < props.state.maxHp && props.state.money >= MEDKIT.price)
 const canDog = computed(() => props.state.dogCount < DOG.maxCount && props.state.money >= DOG.price)
 
-const buyables: WeaponId[] = ['pistol', 'smg', 'ak', 'shotgun', 'sniper']
+const buyables: WeaponId[] = ['pistol', 'smg', 'ak', 'shotgun', 'sniper', 'supersniper']
 const items = computed(() =>
   buyables.map((id) => {
     const d = WEAPONS[id]

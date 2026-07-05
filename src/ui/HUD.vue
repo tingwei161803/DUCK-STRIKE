@@ -87,7 +87,7 @@ function floatStyle(f: any) {
   </div>
 
   <!-- 開鏡黑框（狙擊） -->
-  <div v-if="aim && state.current === 'sniper'" class="absolute inset-0 pointer-events-none">
+  <div v-if="aim && WEAPONS[state.current].scope" class="absolute inset-0 pointer-events-none">
     <div class="absolute inset-0" style="background:radial-gradient(circle at center, transparent 0, transparent 28%, #000 30%)"></div>
     <div class="absolute left-1/2 top-0 bottom-0 bg-black/70" style="width:1px"></div>
     <div class="absolute top-1/2 left-0 right-0 bg-black/70" style="height:1px"></div>

@@ -252,7 +252,7 @@ export class WeaponSystem {
     if (this.cooldown > 0) this.cooldown -= dt
 
     // 數字鍵切換武器
-    const map: Record<string, WeaponId> = { Digit1: 'pistol', Digit2: 'smg', Digit3: 'ak', Digit4: 'shotgun', Digit5: 'sniper', Digit3b: 'knife' }
+    const map: Record<string, WeaponId> = { Digit1: 'pistol', Digit2: 'smg', Digit3: 'ak', Digit4: 'shotgun', Digit5: 'sniper', Digit6: 'supersniper', Digit3b: 'knife' }
     for (const code in map) {
       if (this.input.justPressed(code.replace('b', '')) && this.owned.includes(map[code])) {
         if (this.current !== map[code]) this.equip(map[code])

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { Game, createGameState } from './game/game'
-import type { WeaponId, Difficulty } from './game/config'
+import type { WeaponId, Difficulty, DogUpgradeKind } from './game/config'
 import { THEME, DIFFICULTIES } from './game/config'
 import { Meta } from './game/meta'
 import HUD from './ui/HUD.vue'
@@ -67,6 +67,7 @@ function buy(id: WeaponId) { game?.buy(id) }
 function buyArmor(n: number | 'max' = 1) { game?.buyArmor(n) }
 function buyMedkit(n: number | 'max' = 1) { game?.buyMedkit(n) }
 function buyDog() { game?.buyDog() }
+function buyDogUpgrade(kind: DogUpgradeKind) { game?.buyDogUpgrade(kind) }
 function nextWave() { game?.nextWave() }
 function resume() { game?.resume() }
 </script>
@@ -104,7 +105,7 @@ function resume() { game?.resume() }
   <TouchControls v-if="isMobile && state.phase === 'playing' && inputRef" :input="inputRef" :state="state" />
 
   <!-- 購買選單 -->
-  <BuyMenu v-if="state.phase === 'buy'" :state="state" @buy="buy" @armor="buyArmor" @medkit="buyMedkit" @dog="buyDog" @next="nextWave" />
+  <BuyMenu v-if="state.phase === 'buy'" :state="state" @buy="buy" @armor="buyArmor" @medkit="buyMedkit" @dog="buyDog" @dogup="buyDogUpgrade" @next="nextWave" />
 
   <!-- 暫停 -->
   <div v-if="state.phase === 'paused'" class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-30">

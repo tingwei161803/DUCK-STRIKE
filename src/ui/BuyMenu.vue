@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/game'
-import { WEAPONS, WeaponId, MEDKIT, DOG } from '../game/config'
+import { WEAPONS, WeaponId, MEDKIT, DOG, DOG_UPGRADES, DogUpgradeKind } from '../game/config'
 
 const props = defineProps<{ state: GameState }>()
 const emit = defineEmits<{
@@ -9,6 +9,7 @@ const emit = defineEmits<{
   (e: 'armor', n: number | 'max'): void
   (e: 'medkit', n: number | 'max'): void
   (e: 'dog'): void
+  (e: 'dogup', kind: DogUpgradeKind): void
   (e: 'next'): void
 }>()
 
@@ -34,6 +35,22 @@ const armorCost = 650
 const bulkBtns: { label: string; n: number | 'max' }[] = [
   { label: '×1', n: 1 }, { label: '×10', n: 10 }, { label: 'MAX', n: 'max' },
 ]
+
+// 軍犬升級：等級/價格/可否購買
+const dogUps = computed(() =>
+  (Object.keys(DOG_UPGRADES) as DogUpgradeKind[]).map((kind) => {
+    const def = DOG_UPGRADES[kind]
+    const lv = props.state.dogLv[kind]
+    const maxed = lv >= def.max
+    const cost = def.baseCost * (lv + 1)
+    return {
+      kind, icon: def.icon, name: def.name, lv, maxed,
+      label: maxed ? 'MAX' : `$${cost}`,
+      can: !maxed && props.state.money >= cost,
+      pct: `+${Math.round(def.perLevel * (lv + 1) * 100)}%`,
+    }
+  }),
+)
 </script>
 
 <template>
@@ -114,6 +131,20 @@ const bulkBtns: { label: string; n: number | 'max' }[] = [
         <button @click="emit('next')"
           class="flex-1 p-4 rounded-xl bg-yellow-400 text-black font-black text-lg hover:bg-yellow-300 transition cursor-pointer">
           開始第 {{ state.wave + 1 }} 波 ▶
+        </button>
+      </div>
+
+      <!-- 軍犬升級（全體共用，本場有效） -->
+      <div class="mt-3 flex items-center gap-3">
+        <div class="text-[11px] text-amber-300/70 font-bold tracking-widest shrink-0">軍犬升級</div>
+        <button v-for="u in dogUps" :key="u.kind" @click="emit('dogup', u.kind)" :disabled="!u.can"
+          class="flex-1 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-900/10 text-left transition"
+          :class="u.can ? 'hover:border-amber-400 hover:bg-amber-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
+          <div class="flex justify-between items-center">
+            <span class="text-[12px] font-bold text-amber-100">{{ u.icon }} {{ u.name }} <span class="text-amber-400/70">Lv.{{ u.lv }}</span></span>
+            <span class="text-[12px] font-black" :class="u.maxed ? 'text-white/40' : 'text-amber-300'">{{ u.label }}</span>
+          </div>
+          <div class="text-[10px] text-white/40">{{ u.maxed ? '已滿級' : '下一級 ' + u.pct }}</div>
         </button>
       </div>
     </div>

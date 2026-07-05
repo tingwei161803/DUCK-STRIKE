@@ -19,6 +19,7 @@ import { Meta } from './meta'
 import {
   WEAPONS, WeaponId, ENEMIES, EnemyId, waveSpec, ECONOMY, PLAYER,
   DIFFICULTIES, Difficulty, DROP, KILLSTREAK, PickupKind, GRENADE, ULTIMATE, MEDKIT, DOG,
+  DOG_UPGRADES, DogUpgradeKind,
 } from './config'
 import { SFX, initAudio } from './sound'
 
@@ -69,6 +70,7 @@ export interface GameState {
   dogHp: number            // 存活軍犬血量總和
   dogMax: number           // 存活軍犬血量上限總和
   dogCount: number         // 存活軍犬數量
+  dogLv: Record<DogUpgradeKind, number>   // 軍犬升級等級（本場）
 }
 
 export function createGameState(): GameState {
@@ -80,6 +82,7 @@ export function createGameState(): GameState {
     difficulty: 'normal', frenzyT: 0, isBossWave: false, damageDir: 0, damageDirAt: 0,
     metaCoins: 0, board: [], runCoins: 0, grenades: 0, ultCharge: 0, ultActive: false,
     dogAlive: false, dogHp: 0, dogMax: DOG.maxHp, dogCount: 0,
+    dogLv: { dmg: 0, hp: 0, spd: 0 },
   }
 }
 
@@ -95,6 +98,7 @@ export class Game {
   pickups!: PickupManager
   grenades!: GrenadeManager
   companions: Companion[] = []   // 軍犬同伴池（最多 DOG.maxCount 隻存活）
+  private dogMods = { dmg: 1, hp: 1, spd: 1 }   // 軍犬升級倍率（全體共用，傳參照給 Companion）
   state: GameState
 
   private spawnQueue: EnemyId[] = []
@@ -370,6 +374,8 @@ export class Game {
     this.state.dogAlive = false
     this.state.dogHp = 0
     this.state.dogCount = 0
+    this.state.dogLv = { dmg: 0, hp: 0, spd: 0 }
+    this.dogMods.dmg = 1; this.dogMods.hp = 1; this.dogMods.spd = 1
     this.grenadeCd = 0
     this.state.grenades = GRENADE.start
     this.state.ultCharge = 0
@@ -548,6 +554,7 @@ export class Game {
       this.scene, this.player, this.map,
       (pos, range) => this.pickDogTarget(dog, pos, range),
       (e, dmg) => this.enemies.biteDamage(e, dmg),
+      this.dogMods,
     )
     this.companions.push(dog)
     return dog
@@ -586,6 +593,22 @@ export class Game {
     const off = new Vector3(Math.cos(ang), 0, Math.sin(ang)).scale(1.2)
     const spawn = this.player.position.add(base).add(off)
     this.acquireCompanion().spawn(new Vector3(spawn.x, 0, spawn.z))
+    this.state.money = this.player.money
+    SFX.buy()
+    return true
+  }
+
+  // 軍犬升級：全體軍犬共用倍率，本場有效，價格隨等級遞增
+  buyDogUpgrade(kind: DogUpgradeKind): boolean {
+    const def = DOG_UPGRADES[kind]
+    const lv = this.state.dogLv[kind]
+    if (lv >= def.max) return false
+    const cost = def.baseCost * (lv + 1)
+    if (this.player.money < cost) return false
+    this.player.money -= cost
+    this.state.dogLv[kind] = lv + 1
+    this.dogMods[kind] = 1 + (lv + 1) * def.perLevel
+    if (kind === 'hp') for (const dog of this.companions) dog.healToFull()   // 升血量順便回滿
     this.state.money = this.player.money
     SFX.buy()
     return true
@@ -729,7 +752,7 @@ export class Game {
     this.state.dogCount = dogCount
     this.state.dogAlive = dogCount > 0
     this.state.dogHp = Math.round(dogHp)
-    this.state.dogMax = Math.max(1, dogCount) * DOG.maxHp
+    this.state.dogMax = Math.max(1, dogCount) * DOG.maxHp * this.dogMods.hp
     this.state.armor = Math.round(this.player.armor)
     this.state.reloading = this.weapons.isReloading
     this.state.aiming = this.player.aiming

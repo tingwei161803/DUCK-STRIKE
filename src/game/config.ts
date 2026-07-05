@@ -146,6 +146,14 @@ export const DOG = {
   scale: 0.9,          // 目標身高（公尺，狗較矮）
 }
 
+// 軍犬升級（軍火庫購買，本場有效）：全體軍犬共用倍率，價格隨等級遞增
+export const DOG_UPGRADES = {
+  dmg: { name: '咬擊傷害', icon: '🦷', perLevel: 0.25, max: 10, baseCost: 800 },
+  hp:  { name: '軍犬血量', icon: '❤️', perLevel: 0.25, max: 10, baseCost: 700 },
+  spd: { name: '移動速度', icon: '💨', perLevel: 0.12, max: 5,  baseCost: 600 },
+} as const
+export type DogUpgradeKind = keyof typeof DOG_UPGRADES
+
 export const ECONOMY = {
   startMoney: 800,
   killBonusStreak: 20,    // 連殺額外

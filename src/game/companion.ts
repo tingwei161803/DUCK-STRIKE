@@ -15,12 +15,16 @@ const DOG_ANIMS = { idle: /idle$/i, run: /^run$|walk/i, attack: /attack/i, death
 // 全軍犬共用同一份模型模板（loadModel 本身有快取；此處再存一份供同步建立實例用）
 let DOG_MODEL: LoadedModel | null = null
 
+// 全體軍犬共用的升級倍率（由 game.ts 持有並傳入同一參照）
+export interface DogMods { dmg: number; hp: number; spd: number }
+
 export class Companion {
   scene: Scene
   player: Player
   map: GameMap
   findEnemy: (pos: Vector3, range: number) => Enemy | null
   damageEnemy: (e: Enemy, dmg: number) => void
+  mods: DogMods
 
   inst: ModelInstance | null = null
   hp = 0
@@ -35,10 +39,15 @@ export class Companion {
     scene: Scene, player: Player, map: GameMap,
     findEnemy: (pos: Vector3, range: number) => Enemy | null,
     damageEnemy: (e: Enemy, dmg: number) => void,
+    mods: DogMods = { dmg: 1, hp: 1, spd: 1 },
   ) {
     this.scene = scene; this.player = player; this.map = map
     this.findEnemy = findEnemy; this.damageEnemy = damageEnemy
+    this.mods = mods
   }
+
+  /** 目前血量上限（含升級倍率）。 */
+  get maxHp() { return DOG.maxHp * this.mods.hp }
 
   // 共用模型只需載入一次；之後每隻軍犬各自 instantiate 出獨立實例
   static async preload(scene: Scene) {
@@ -56,13 +65,13 @@ export class Companion {
 
   spawn(pos: Vector3) {
     this.ensureInst()
-    this.hp = DOG.maxHp; this.alive = true; this.deathT = 0; this.biteCd = 0; this.lastHurt = -99; this.curTarget = null
+    this.hp = this.maxHp; this.alive = true; this.deathT = 0; this.biteCd = 0; this.lastHurt = -99; this.curTarget = null
     this.inst!.holder.setEnabled(true)
     this.inst!.holder.position.set(pos.x, 0, pos.z)
     this.play('idle', true)
   }
 
-  healToFull() { if (this.alive) this.hp = DOG.maxHp }
+  healToFull() { if (this.alive) this.hp = this.maxHp }
 
   hurt(dmg: number) {
     if (!this.alive) return
@@ -119,7 +128,7 @@ export class Companion {
 
     if (biteMode && enemy) {
       this.play('attack', true)
-      if (this.biteCd <= 0) { this.biteCd = DOG.biteCd; this.damageEnemy(enemy, DOG.bite); SFX.shoot('knife') }
+      if (this.biteCd <= 0) { this.biteCd = DOG.biteCd; this.damageEnemy(enemy, DOG.bite * this.mods.dmg); SFX.shoot('knife') }
     } else {
       const stopDist = enemy ? DOG.biteRange * 0.8 : DOG.followDist
       if (dist > stopDist) { this.play('run', true); this.move(dir, dt, pos) }
@@ -128,13 +137,13 @@ export class Companion {
 
     // 脫戰回血
     const now = performance.now() / 1000
-    if (now - this.lastHurt > DOG.regenDelay && this.hp < DOG.maxHp) {
-      this.hp = Math.min(DOG.maxHp, this.hp + DOG.regenRate * dt)
+    if (now - this.lastHurt > DOG.regenDelay && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + DOG.regenRate * dt)
     }
   }
 
   private move(dir: Vector3, dt: number, pos: Vector3) {
-    const step = DOG.speed * dt
+    const step = DOG.speed * this.mods.spd * dt
     const h = WORLD.arenaHalf - 1
     const tryMove = (vx: number, vz: number) => {
       const nx = pos.x + vx, nz = pos.z + vz

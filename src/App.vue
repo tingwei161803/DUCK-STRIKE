@@ -60,8 +60,10 @@ watch(() => state.phase, (p, prev) => {
 onUnmounted(() => { cancelAnimationFrame(raf); if (hbTimer) clearInterval(hbTimer); game?.dispose() })
 
 const selectedEndless = ref(false)
-function start(diff: Difficulty, endless = false) { selectedDiff.value = diff; selectedEndless.value = endless; game?.start(diff, { endless }) }
-function restart() { game?.start(selectedDiff.value, { endless: selectedEndless.value }) }
+const selectedDaily = ref(false)
+function start(diff: Difficulty, endless = false) { selectedDiff.value = diff; selectedEndless.value = endless; selectedDaily.value = false; game?.start(diff, { endless }) }
+function startDaily() { selectedDiff.value = 'normal'; selectedEndless.value = false; selectedDaily.value = true; game?.start('normal', { daily: true }) }
+function restart() { game?.start(selectedDiff.value, { endless: selectedEndless.value, daily: selectedDaily.value }) }
 function backToMenu() { refreshMeta(); menuScreen.value = 'home'; state.phase = 'menu' }
 function closeUpgrades() { showUpgrades.value = false; refreshMeta() }
 function buy(id: WeaponId) { game?.buy(id) }
@@ -89,7 +91,7 @@ function resume() { game?.resume() }
   <!-- 主選單（首頁 / 排行榜 / 留言板） -->
   <template v-else-if="state.phase === 'menu'">
     <Landing v-if="menuScreen === 'home'" :best-score="bestScore" :meta-coins="metaCoins"
-      @start="start" @leaderboard="menuScreen = 'leaderboard'" @messages="menuScreen = 'messages'" @upgrades="showUpgrades = true"
+      @start="start" @daily="startDaily" @leaderboard="menuScreen = 'leaderboard'" @messages="menuScreen = 'messages'" @upgrades="showUpgrades = true"
       @codex="(t) => { codexTab = t; menuScreen = 'codex' }" @online="menuScreen = 'online'" />
     <Leaderboard v-else-if="menuScreen === 'leaderboard'" @back="menuScreen = 'home'" />
     <MessageBoard v-else-if="menuScreen === 'messages'" @back="menuScreen = 'home'" />
@@ -123,7 +125,11 @@ function resume() { game?.resume() }
   <!-- 死亡結算 -->
   <div v-if="state.phase === 'dead'" class="absolute inset-0 flex flex-col items-center justify-center bg-red-950/80 backdrop-blur-sm z-40">
     <div class="text-6xl font-black text-red-400 mb-2">陣亡</div>
-    <div class="text-white/70 mb-6">你撐到了第 {{ state.wave }} 波 · {{ DIFFICULTIES[state.difficulty].name }}難度</div>
+    <div class="text-white/70 mb-6">
+      你撐到了第 {{ state.wave }} 波 · {{ DIFFICULTIES[state.difficulty].name }}難度
+      <span v-if="state.daily" class="text-purple-300 font-bold">· 📅 每日挑戰</span>
+      <span v-else-if="state.endless" class="text-red-300 font-bold">· 🔥 無盡</span>
+    </div>
     <div class="grid grid-cols-3 gap-8 text-center mb-4">
       <div><div class="text-4xl font-black text-yellow-400">{{ state.score }}</div><div class="text-xs text-white/50 tracking-widest">分數</div></div>
       <div><div class="text-4xl font-black text-white">{{ state.kills }}</div><div class="text-xs text-white/50 tracking-widest">擊殺</div></div>

@@ -6,6 +6,7 @@ import { getPlayerName, setPlayerName, fetchOnline, fetchStats, type GlobalStats
 const props = defineProps<{ bestScore: number; metaCoins: number }>()
 const emit = defineEmits<{
   (e: 'start', difficulty: Difficulty, endless: boolean): void
+  (e: 'daily'): void
   (e: 'leaderboard'): void
   (e: 'messages'): void
   (e: 'upgrades'): void
@@ -27,6 +28,8 @@ let timer = 0
 
 function saveName() { setPlayerName(name.value); name.value = getPlayerName() }
 function onStart() { if (!canStart.value) return; saveName(); emit('start', selectedDiff.value, endless.value) }
+function onDaily() { if (!canStart.value) return; saveName(); emit('daily') }
+const todayStr = new Date().toISOString().slice(0, 10)
 
 async function refreshOnline() {
   const d = await fetchOnline()
@@ -92,11 +95,19 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
       <!-- CTA -->
       <div class="mt-5 flex flex-col items-center gap-3">
-        <button @click="onStart" :disabled="!canStart"
-          class="px-10 py-4 font-black text-2xl rounded-xl transition"
-          :class="canStart ? 'bg-yellow-400 text-black hover:bg-yellow-300 hover:scale-105 cursor-pointer' : 'bg-white/10 text-white/40 cursor-not-allowed'">
-          開始遊戲 ▶
-        </button>
+        <div class="flex gap-3 items-stretch">
+          <button @click="onStart" :disabled="!canStart"
+            class="px-10 py-4 font-black text-2xl rounded-xl transition"
+            :class="canStart ? 'bg-yellow-400 text-black hover:bg-yellow-300 hover:scale-105 cursor-pointer' : 'bg-white/10 text-white/40 cursor-not-allowed'">
+            開始遊戲 ▶
+          </button>
+          <button @click="onDaily" :disabled="!canStart"
+            class="px-5 py-2 font-black rounded-xl transition text-left"
+            :class="canStart ? 'bg-purple-500/80 text-white hover:bg-purple-400 hover:scale-105 cursor-pointer' : 'bg-white/10 text-white/40 cursor-not-allowed'">
+            📅 每日挑戰
+            <span class="block text-[10px] font-bold opacity-70">{{ todayStr }} · 全球同一配置</span>
+          </button>
+        </div>
         <div class="flex gap-2 flex-wrap justify-center">
           <button @click="emit('leaderboard')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">🏆 排行榜</button>
           <button @click="emit('messages')" class="px-4 py-2 bg-white/10 text-white/80 font-bold rounded-lg hover:bg-white/20 transition cursor-pointer">💬 留言板</button>

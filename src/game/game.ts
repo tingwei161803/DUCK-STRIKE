@@ -23,6 +23,7 @@ import {
   WEAPON_MODS, WeaponModKind,
 } from './config'
 import { SFX, initAudio } from './sound'
+import { setSeed, rnd, todaySeed } from './rng'
 
 export type Phase = 'loading' | 'menu' | 'playing' | 'buy' | 'paused' | 'dead'
 
@@ -79,6 +80,7 @@ export interface GameState {
   killCamAt: number        // 擊殺慢鏡頭觸發時間戳（HUD 疊加電影黑邊用）
   endless: boolean         // 無盡模式：軍火庫限時，波次自動連續
   buyCountdown: number     // 無盡模式軍火庫倒數（秒）
+  daily: boolean           // 每日挑戰：日期種子，全球同一配置
 }
 
 export function createGameState(): GameState {
@@ -96,7 +98,7 @@ export function createGameState(): GameState {
     weaponMods: { mag: false, pierce: false, fire: false },
     isNight: false,
     killCamAt: 0,
-    endless: false, buyCountdown: 0,
+    endless: false, buyCountdown: 0, daily: false,
   }
 }
 
@@ -438,9 +440,11 @@ export class Game {
   private buyT = 0   // 無盡模式軍火庫倒數
 
   // ================= 狀態流程 =================
-  start(difficulty: Difficulty = 'normal', opts: { endless?: boolean } = {}) {
+  start(difficulty: Difficulty = 'normal', opts: { endless?: boolean; daily?: boolean } = {}) {
     initAudio()
     this.state.endless = !!opts.endless
+    this.state.daily = !!opts.daily
+    setSeed(opts.daily ? todaySeed() : null)   // 每日挑戰：日期種子 → 波次組成/出生點/掉落全球一致
     // 難度
     this.state.difficulty = difficulty
     const diff = DIFFICULTIES[difficulty]
@@ -522,9 +526,9 @@ export class Game {
       const count = Math.max(1, Math.round(spec.count * this.diffCountMult))
       for (let i = 0; i < count; i++) this.spawnQueue.push(spec.types[i % spec.types.length])
     }
-    // 洗牌
+    // 洗牌（每日挑戰用種子亂數 → 全球同序）
     for (let i = this.spawnQueue.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
+      const j = Math.floor(rnd() * (i + 1))
       ;[this.spawnQueue[i], this.spawnQueue[j]] = [this.spawnQueue[j], this.spawnQueue[i]]
     }
     this.spawnTimer = 0.5
@@ -574,8 +578,8 @@ export class Game {
     } else {
       // 連殺越高掉寶率越高（每殺 +6%，上限 ×3；封頂 90% 保留一點懸念）
       const streakMult = Math.min(DROP.streakBonusCap, 1 + this.state.streak * DROP.streakBonusPer)
-      if (Math.random() < Math.min(0.9, DROP.chance * streakMult)) {
-        const r = Math.random()
+      if (rnd() < Math.min(0.9, DROP.chance * streakMult)) {
+        const r = rnd()
         const kind: PickupKind = r < 0.5 ? 'heal' : r < 0.82 ? 'ammo' : 'frenzy'
         this.pickups.spawn(kind, dropPos)
       }
@@ -911,10 +915,10 @@ export class Game {
       this.spawnTimer -= dt
       if (this.spawnTimer <= 0 && this.enemies.aliveCount < this.concurrentCap()) {
         const id = this.spawnQueue.shift()!
-        const sp = this.map.spawnPoints[Math.floor(Math.random() * this.map.spawnPoints.length)]
+        const sp = this.map.spawnPoints[Math.floor(rnd() * this.map.spawnPoints.length)]
         const pos = sp.clone(); pos.y = 0
         this.enemies.spawn(id, pos)
-        this.spawnTimer = 0.6 + Math.random() * 0.6
+        this.spawnTimer = 0.6 + rnd() * 0.6
         this.updateEnemyHud()
       }
     } else if (this.enemies.aliveCount === 0 && this.enemies.pendingDead === 0) {

@@ -76,6 +76,7 @@ export interface GameState {
   grenadeKind: GrenadeKind // 目前手榴彈彈種（T 鍵切換）
   weaponMods: Record<WeaponModKind, boolean>   // 武器改造（本場一次性購買）
   isNight: boolean         // 黑夜中（王波）
+  killCamAt: number        // 擊殺慢鏡頭觸發時間戳（HUD 疊加電影黑邊用）
 }
 
 export function createGameState(): GameState {
@@ -92,6 +93,7 @@ export function createGameState(): GameState {
     grenadeKind: 'frag',
     weaponMods: { mag: false, pierce: false, fire: false },
     isNight: false,
+    killCamAt: 0,
   }
 }
 
@@ -124,6 +126,7 @@ export class Game {
   private diffBase = { hp: 1, dmg: 1, spd: 1 }   // 難度基準倍率（波次成長疊乘在上）
   private grenadeCd = 0
   private killAccum = 0    // 累積擊殺數（達 killsPerStep 充能一次大絕）
+  private killCamT = 0     // 擊殺慢鏡頭剩餘秒數（殺死該波最後一隻時觸發）
   touchMode = false        // 觸控裝置（手機 / ?touch）：不請求指標鎖定，改用虛擬搖桿
 
   constructor(canvas: HTMLCanvasElement, state: GameState) {
@@ -551,6 +554,12 @@ export class Game {
     if (isHead) this.addFloat(_e.inst.holder.position.add(new Vector3(0, 2.4, 0)), '爆頭!', '#ff3b30', true)
     if (_e.def.boss) this.addFloat(top.add(new Vector3(0, 0.6, 0)), '擊敗王!', '#ffcc00', true)
 
+    // 該波最後一擊 → 子彈時間擊殺鏡頭（1.2 秒世界慢動作 + 電影黑邊）
+    if (this.waveActive && this.spawnQueue.length === 0 && this.enemies.aliveCount === 0) {
+      this.killCamT = 1.2
+      this.state.killCamAt = performance.now()
+    }
+
     // 掉落物
     const dropPos = _e.inst.holder.position.clone(); dropPos.y = 0
     if (_e.def.boss) {
@@ -790,7 +799,9 @@ export class Game {
         if (this.state.ultCharge <= 0) this.endUltimate()
         else slowF = ULTIMATE.slowFactor
       }
-      const wdt = dt * slowF
+      let wdt = dt * slowF
+      // 擊殺慢鏡頭：世界 0.25 倍速（與大絕縮放取較慢者）
+      if (this.killCamT > 0) { this.killCamT -= dt; wdt = Math.min(wdt, dt * 0.25) }
       this.player.update(dt)
       this.weapons.update(dt)
       this.enemies.update(wdt)
@@ -895,6 +906,7 @@ export class Game {
         this.updateEnemyHud()
       }
     } else if (this.enemies.aliveCount === 0 && this.enemies.pendingDead === 0) {
+      if (this.killCamT > 0) { this.updateEnemyHud(); return }   // 慢鏡頭播完再結算
       // 波次完成
       this.waveActive = false
       this.setNight(false)   // 回到白天

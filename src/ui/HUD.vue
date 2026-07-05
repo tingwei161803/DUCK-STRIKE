@@ -25,6 +25,7 @@ const ammoList = computed(() =>
 
 const frenzyOn = computed(() => props.state.frenzyT > 0.05)
 const dogModeName = computed(() => ({ follow: '跟隨', guard: '駐守', attack: '出擊' }[props.state.dogMode]))
+const killCamOn = computed(() => props.now - props.state.killCamAt < 1200)
 const dmgShow = computed(() => props.now - props.state.damageDirAt < 800)
 const dmgOpacity = computed(() => Math.max(0, 1 - (props.now - props.state.damageDirAt) / 800))
 const dmgRot = computed(() => (props.state.damageDir * 180) / Math.PI)
@@ -63,6 +64,15 @@ function floatStyle(f: any) {
   <div class="absolute inset-0 pointer-events-none" :style="{
     boxShadow: `inset 0 0 220px 40px rgba(200,0,0,${dmgAlpha})`,
     opacity: dmgAlpha > 0 ? 1 : 0, transition: 'opacity .1s' }" />
+
+  <!-- 擊殺慢鏡頭：電影黑邊 + 波次完成字樣 -->
+  <template v-if="killCamOn">
+    <div class="absolute top-0 left-0 right-0 bg-black pointer-events-none" style="height:12vh; transition: height .25s"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-black pointer-events-none" style="height:12vh; transition: height .25s"></div>
+    <div class="absolute top-[14vh] left-1/2 -translate-x-1/2 text-yellow-300 font-black text-3xl tracking-[0.3em] pointer-events-none hud-text animate-pulse">
+      🎬 WAVE CLEAR
+    </div>
+  </template>
 
   <!-- 大絕：時間緩慢 畫面藍色調 + 暗角 -->
   <div v-if="state.ultActive" class="absolute inset-0 pointer-events-none"

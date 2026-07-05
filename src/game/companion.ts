@@ -12,6 +12,9 @@ import { SFX } from './sound'
 
 const DOG_ANIMS = { idle: /idle$/i, run: /^run$|walk/i, attack: /attack/i, death: /death/i }
 
+// 全軍犬共用同一份模型模板（loadModel 本身有快取；此處再存一份供同步建立實例用）
+let DOG_MODEL: LoadedModel | null = null
+
 export class Companion {
   scene: Scene
   player: Player
@@ -19,10 +22,10 @@ export class Companion {
   findEnemy: (pos: Vector3, range: number) => Enemy | null
   damageEnemy: (e: Enemy, dmg: number) => void
 
-  private model!: LoadedModel
   inst: ModelInstance | null = null
   hp = 0
   alive = false
+  curTarget: Enemy | null = null   // 目前鎖定的敵人（給目標分散邏輯統計用）
   private biteCd = 0
   private lastHurt = -99
   private deathT = 0
@@ -37,12 +40,15 @@ export class Companion {
     this.findEnemy = findEnemy; this.damageEnemy = damageEnemy
   }
 
-  async preload() { this.model = await loadModel(this.scene, '/models/characters/dog.gltf') }
+  // 共用模型只需載入一次；之後每隻軍犬各自 instantiate 出獨立實例
+  static async preload(scene: Scene) {
+    if (!DOG_MODEL) DOG_MODEL = await loadModel(scene, '/models/characters/dog.gltf')
+  }
 
   private ensureInst() {
     if (this.inst) return
-    const scale = scaleForHeight(this.model, DOG.scale)
-    this.inst = instantiate(this.scene, this.model, scale, DOG_ANIMS, true)
+    const scale = scaleForHeight(DOG_MODEL!, DOG.scale)
+    this.inst = instantiate(this.scene, DOG_MODEL!, scale, DOG_ANIMS, true)
     this.inst.holder.setEnabled(false)
   }
 
@@ -50,7 +56,7 @@ export class Companion {
 
   spawn(pos: Vector3) {
     this.ensureInst()
-    this.hp = DOG.maxHp; this.alive = true; this.deathT = 0; this.biteCd = 0; this.lastHurt = -99
+    this.hp = DOG.maxHp; this.alive = true; this.deathT = 0; this.biteCd = 0; this.lastHurt = -99; this.curTarget = null
     this.inst!.holder.setEnabled(true)
     this.inst!.holder.position.set(pos.x, 0, pos.z)
     this.play('idle', true)
@@ -67,6 +73,7 @@ export class Companion {
 
   private die() {
     this.alive = false
+    this.curTarget = null
     this.deathT = 2.0
     this.play('death', false)
     SFX.enemyDie()
@@ -74,7 +81,7 @@ export class Companion {
 
   clear() {
     if (this.inst) { this.inst.holder.setEnabled(false); this.curAnim?.stop(); this.curAnim = null }
-    this.alive = false; this.hp = 0; this.deathT = 0
+    this.alive = false; this.hp = 0; this.deathT = 0; this.curTarget = null
   }
 
   private play(key: keyof typeof DOG_ANIMS, loop: boolean) {
@@ -96,6 +103,7 @@ export class Companion {
     const pos = this.inst.holder.position
 
     const enemy = this.findEnemy(pos, DOG.seekRange)
+    this.curTarget = enemy
     let target: Vector3
     let biteMode = false
     if (enemy) {

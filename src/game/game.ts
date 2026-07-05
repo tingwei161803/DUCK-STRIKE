@@ -66,9 +66,10 @@ export interface GameState {
   ultCharge: number        // 大絕充能（秒，0~maxCharge）
   ultActive: boolean       // 大絕（時間緩慢）啟動中
   medkitBought: boolean    // 本次進軍火庫是否已買補血包（每次限 1）
-  dogAlive: boolean        // 軍犬是否存活
-  dogHp: number            // 軍犬血量
-  dogMax: number           // 軍犬血量上限
+  dogAlive: boolean        // 是否至少有一隻軍犬存活
+  dogHp: number            // 存活軍犬血量總和
+  dogMax: number           // 存活軍犬血量上限總和
+  dogCount: number         // 存活軍犬數量
 }
 
 export function createGameState(): GameState {
@@ -79,7 +80,7 @@ export function createGameState(): GameState {
     floats: [],
     difficulty: 'normal', frenzyT: 0, isBossWave: false, damageDir: 0, damageDirAt: 0,
     metaCoins: 0, board: [], runCoins: 0, grenades: 0, ultCharge: 0, ultActive: false, medkitBought: false,
-    dogAlive: false, dogHp: 0, dogMax: DOG.maxHp,
+    dogAlive: false, dogHp: 0, dogMax: DOG.maxHp, dogCount: 0,
   }
 }
 
@@ -94,7 +95,7 @@ export class Game {
   enemies!: EnemyManager
   pickups!: PickupManager
   grenades!: GrenadeManager
-  companion!: Companion
+  companions: Companion[] = []   // 軍犬同伴池（最多 DOG.maxCount 隻存活）
   state: GameState
 
   private spawnQueue: EnemyId[] = []
@@ -162,14 +163,9 @@ export class Game {
     this.grenades = new GrenadeManager(s, this.map, (pos) => this.grenadeExplode(pos))
     await this.grenades.preload()
 
-    // 軍犬：找怪咬怪；並登記為敵人的引怪目標
-    this.companion = new Companion(
-      s, this.player, this.map,
-      (pos, range) => this.enemies.nearestEnemy(pos, range),
-      (e, dmg) => this.enemies.biteDamage(e, dmg),
-    )
-    await this.companion.preload()
-    this.enemies.companionTarget = this.companion
+    // 軍犬：找怪咬怪；並登記為敵人的引怪目標（可購買多隻，敵人各自追最近的一隻）
+    await Companion.preload(s)
+    this.enemies.getCompanionTarget = (pos) => this.nearestCompanion(pos)
     this.state.loadPct = 80
 
     this.weapons = new WeaponSystem(
@@ -267,9 +263,10 @@ export class Game {
     } else if (pd < radius * 1.8) {
       this.player.addShake(0.3 * (1 - pd / (radius * 1.8)))
     }
-    if (this.companion.alive) {
-      const dd = Vector3.Distance(this.companion.position, pos)
-      if (dd < radius) this.companion.hurt(dmg * (1 - dd / radius))
+    for (const dog of this.companions) {
+      if (!dog.alive) continue
+      const dd = Vector3.Distance(dog.position, pos)
+      if (dd < radius) dog.hurt(dmg * (1 - dd / radius))
     }
     this.addFloat(pos.add(new Vector3(0, 1.4, 0)), '💥', '#ff7a00', true)
   }
@@ -371,8 +368,9 @@ export class Game {
     this.enemies.reset()
     this.pickups.clear()
     this.grenades.clear()
-    this.companion.clear()
+    for (const dog of this.companions) dog.clear()
     this.state.dogAlive = false
+    this.state.dogCount = 0
     this.state.dogHp = 0
     this.grenadeCd = 0
     this.state.grenades = GRENADE.start
@@ -392,7 +390,7 @@ export class Game {
   private beginWave(wave: number) {
     // 進入新一波補充手榴彈（第 1 波用起始量，不額外補）
     if (wave > 1) this.state.grenades = Math.min(GRENADE.max, this.state.grenades + GRENADE.refillPerWave)
-    if (this.companion.alive) this.companion.healToFull()   // 軍犬每波回滿血
+    for (const dog of this.companions) if (dog.alive) dog.healToFull()   // 軍犬每波回滿血
     // 隨波數成長：敵人越後面越強（血量 +12%/波、傷害 +7%/波、速度 +2%/波 上限 1.5），疊乘在難度基準上
     const hpScale = 1 + (wave - 1) * 0.12
     const dmgScale = 1 + (wave - 1) * 0.07
@@ -518,17 +516,71 @@ export class Game {
     return true
   }
 
-  // 軍犬：最多 1 隻，死掉要重買。在玩家附近生成。
+  // 存活軍犬數
+  private dogAliveCount(): number {
+    let n = 0
+    for (const dog of this.companions) if (dog.alive) n++
+    return n
+  }
+
+  // 取離指定位置最近的存活軍犬（給敵人引怪用）
+  private nearestCompanion(pos: Vector3): Companion | null {
+    let best: Companion | null = null
+    let bestD = Infinity
+    for (const dog of this.companions) {
+      if (!dog.alive) continue
+      const d = Vector3.DistanceSquared(dog.position, pos)
+      if (d < bestD) { bestD = d; best = dog }
+    }
+    return best
+  }
+
+  // 建立一隻軍犬實例（共用回呼），或回收一隻已死亡的來重生，避免實例無限增長
+  private acquireCompanion(): Companion {
+    for (const dog of this.companions) if (!dog.alive) return dog
+    const dog: Companion = new Companion(
+      this.scene, this.player, this.map,
+      (pos, range) => this.pickDogTarget(dog, pos, range),
+      (e, dmg) => this.enemies.biteDamage(e, dmg),
+    )
+    this.companions.push(dog)
+    return dog
+  }
+
+  // 軍犬選目標（目標分散）：距離 + 同伴鎖定懲罰，讓狗群自動分頭咬不同敵人。
+  // 每有一隻同伴鎖定同一敵人 +8 等效距離；自己原本的目標 -6（黏性，避免抖動換目標）。
+  private pickDogTarget(self: Companion, pos: Vector3, range: number): Enemy | null {
+    const claims = new Map<Enemy, number>()
+    for (const d of this.companions) {
+      if (d === self || !d.alive || !d.curTarget) continue
+      claims.set(d.curTarget, (claims.get(d.curTarget) || 0) + 1)
+    }
+    let best: Enemy | null = null
+    let bestScore = range
+    for (const e of this.enemies.alive) {
+      if (e.state === 'dead') continue
+      const dist = Vector3.Distance(e.inst.holder.position, pos)
+      if (dist >= range) continue   // 只考慮實際在找怪範圍內的敵人
+      const score = dist + (claims.get(e) || 0) * 8 - (e === self.curTarget ? 6 : 0)
+      if (score < bestScore) { bestScore = score; best = e }
+    }
+    // 保底：敵人少、同伴懲罰疊太高時（例如全場只剩 1 隻怪），退回攻擊最近的敵人，不讓狗發呆
+    return best ?? this.enemies.nearestEnemy(pos, range)
+  }
+
+  // 軍犬：同時最多 DOG.maxCount 隻，死掉可再買。在玩家前方附近生成（多隻散開）。
   buyDog(): boolean {
-    if (this.companion.alive || this.player.money < DOG.price) return false
+    if (this.dogAliveCount() >= DOG.maxCount || this.player.money < DOG.price) return false
     this.player.money -= DOG.price
     const cam = this.player.camera
     const fwd = cam.getForwardRay().direction
-    const spawn = this.player.position.add(new Vector3(fwd.x, 0, fwd.z).normalize().scale(2.5))
-    this.companion.spawn(new Vector3(spawn.x, 0, spawn.z))
+    const base = new Vector3(fwd.x, 0, fwd.z).normalize().scale(2.5)
+    // 依目前數量在玩家周圍散開，避免完全重疊
+    const ang = this.dogAliveCount() * 0.7
+    const off = new Vector3(Math.cos(ang), 0, Math.sin(ang)).scale(1.2)
+    const spawn = this.player.position.add(base).add(off)
+    this.acquireCompanion().spawn(new Vector3(spawn.x, 0, spawn.z))
     this.state.money = this.player.money
-    this.state.dogAlive = true
-    this.state.dogHp = DOG.maxHp
     SFX.buy()
     return true
   }
@@ -596,7 +648,7 @@ export class Game {
       this.enemies.update(wdt)
       this.pickups.update(wdt)
       this.grenades.update(wdt)
-      this.companion.update(dt)          // 軍犬（同伴）維持全速，不受大絕時間縮放
+      for (const dog of this.companions) dog.update(dt)   // 軍犬（同伴）維持全速，不受大絕時間縮放
       this.effects.update(wdt)
       this.tickWave(dt)
       this.syncStatusHud()
@@ -664,8 +716,12 @@ export class Game {
 
   private syncStatusHud() {
     this.state.hp = Math.round(this.player.hp)
-    this.state.dogAlive = this.companion.alive
-    this.state.dogHp = Math.round(this.companion.hp)
+    let dogCount = 0, dogHp = 0
+    for (const dog of this.companions) if (dog.alive) { dogCount++; dogHp += dog.hp }
+    this.state.dogCount = dogCount
+    this.state.dogAlive = dogCount > 0
+    this.state.dogHp = Math.round(dogHp)
+    this.state.dogMax = Math.max(1, dogCount) * DOG.maxHp
     this.state.armor = Math.round(this.player.armor)
     this.state.reloading = this.weapons.isReloading
     this.state.aiming = this.player.aiming

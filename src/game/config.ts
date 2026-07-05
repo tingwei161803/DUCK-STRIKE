@@ -123,7 +123,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
 // 補血包（軍火庫購買，每次進軍火庫限購 1 個）
 export const MEDKIT = { price: 500, heal: 50 }
 
-// 軍犬同伴（軍火庫購買，最多 1 隻，死掉要重買）：引怪 + 咬怪
+// 軍犬同伴（軍火庫購買，最多 maxCount 隻，死掉可再買）：引怪 + 咬怪
 export const DOG = {
   price: 1400,
   maxHp: 350,          // 高血量，不易死
@@ -132,6 +132,7 @@ export const DOG = {
   biteRange: 2.4,      // 咬擊距離
   seekRange: 32,       // 主動找怪範圍
   aggroRange: 16,      // 此範圍內、且比玩家近的敵人會轉去攻擊狗（引怪）
+  maxCount: 100,       // 同時存活上限
   speed: 7.6,          // 移動速度（追得上快敵）
   followDist: 3.5,     // 無怪時跟在玩家身邊的距離
   regenDelay: 4,       // 脫戰回血延遲（秒）

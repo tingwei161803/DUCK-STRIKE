@@ -378,7 +378,7 @@ export class EnemyManager {
   onDamage?: (point: Vector3, amount: number, isHead: boolean) => void
   onBomberExplode?: (pos: Vector3, radius: number, dmg: number) => void
   onEnemyShot?: (from: Vector3, to: Vector3) => void
-  companionTarget: CompanionTarget | null = null   // 軍犬（引怪目標）
+  getCompanionTarget: ((pos: Vector3) => CompanionTarget | null) | null = null   // 依敵人位置取最近的存活軍犬（引怪目標）
   bullets: BulletManager
 
   constructor(scene: Scene, player: Player, map: GameMap, onPlayerDamage: (d: number, from: Vector3 | null) => void, onKill: (e: Enemy, h: boolean) => void) {
@@ -439,7 +439,8 @@ export class EnemyManager {
     let lastFrom: Vector3 | null = null
     for (let i = this.alive.length - 1; i >= 0; i--) {
       const e = this.alive[i]
-      const d = e.update(dt, this.player, this.map, this.scene, this.companionTarget)
+      const ct = this.getCompanionTarget ? this.getCompanionTarget(e.inst.holder.position) : null
+      const d = e.update(dt, this.player, this.map, this.scene, ct)
       if (d > 0) { dmg += d; lastFrom = e.inst.holder.position.clone() }
       // 自爆兵引爆（每隻只觸發一次）
       if (e.exploding) {

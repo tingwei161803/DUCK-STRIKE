@@ -7,7 +7,7 @@ const props = defineProps<{ state: GameState }>()
 const emit = defineEmits<{ (e: 'buy', id: WeaponId): void; (e: 'armor'): void; (e: 'medkit'): void; (e: 'dog'): void; (e: 'next'): void }>()
 
 const canMedkit = computed(() => !props.state.medkitBought && props.state.hp < props.state.maxHp && props.state.money >= MEDKIT.price)
-const canDog = computed(() => !props.state.dogAlive && props.state.money >= DOG.price)
+const canDog = computed(() => props.state.dogCount < DOG.maxCount && props.state.money >= DOG.price)
 
 const buyables: WeaponId[] = ['pistol', 'smg', 'ak', 'shotgun', 'sniper']
 const items = computed(() =>
@@ -83,10 +83,10 @@ const armorCost = 650
           class="flex-1 p-3 rounded-xl border border-amber-500/40 bg-amber-900/20 text-left transition"
           :class="canDog ? 'hover:border-amber-400 hover:bg-amber-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
           <div class="flex justify-between">
-            <span class="font-bold text-amber-200">🐕 軍犬</span>
-            <span class="font-black text-amber-300">{{ state.dogAlive ? '出動中' : '$' + DOG.price }}</span>
+            <span class="font-bold text-amber-200">🐕 軍犬 <span class="text-amber-400/70 text-[11px]">{{ state.dogCount }}/{{ DOG.maxCount }}</span></span>
+            <span class="font-black text-amber-300">{{ state.dogCount >= DOG.maxCount ? '已達上限' : '$' + DOG.price }}</span>
           </div>
-          <div class="text-[11px] text-white/50 mt-1">引怪 + 咬怪，最多 1 隻</div>
+          <div class="text-[11px] text-white/50 mt-1">引怪 + 咬怪，最多 {{ DOG.maxCount }} 隻</div>
         </button>
         <button @click="emit('next')"
           class="flex-1 p-4 rounded-xl bg-yellow-400 text-black font-black text-lg hover:bg-yellow-300 transition cursor-pointer">

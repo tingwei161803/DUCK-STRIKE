@@ -6,7 +6,7 @@ import { WEAPONS, WeaponId, MEDKIT, DOG } from '../game/config'
 const props = defineProps<{ state: GameState }>()
 const emit = defineEmits<{ (e: 'buy', id: WeaponId): void; (e: 'armor'): void; (e: 'medkit'): void; (e: 'dog'): void; (e: 'next'): void }>()
 
-const canMedkit = computed(() => !props.state.medkitBought && props.state.hp < props.state.maxHp && props.state.money >= MEDKIT.price)
+const canMedkit = computed(() => props.state.money >= MEDKIT.price)
 const canDog = computed(() => props.state.dogCount < DOG.maxCount && props.state.money >= DOG.price)
 
 const buyables: WeaponId[] = ['pistol', 'smg', 'ak', 'shotgun', 'sniper', 'supersniper']
@@ -61,23 +61,23 @@ const armorCost = 650
 
       <div class="mt-4 flex items-center gap-3">
         <button @click="emit('armor')"
-          :disabled="state.armor >= 100 || state.money < armorCost"
+          :disabled="state.money < armorCost"
           class="flex-1 p-3 rounded-xl border border-sky-500/40 bg-sky-900/20 text-left transition"
-          :class="(state.armor < 100 && state.money >= armorCost) ? 'hover:border-sky-400 hover:bg-sky-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
+          :class="state.money >= armorCost ? 'hover:border-sky-400 hover:bg-sky-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
           <div class="flex justify-between">
-            <span class="font-bold text-sky-200">護甲</span>
-            <span class="font-black text-sky-300">{{ state.armor >= 100 ? '已滿' : '$' + armorCost }}</span>
+            <span class="font-bold text-sky-200">護甲 <span class="text-sky-400/70 text-[11px]">{{ state.armor }}</span></span>
+            <span class="font-black text-sky-300">${{ armorCost }}</span>
           </div>
-          <div class="text-[11px] text-white/50 mt-1">吸收 50% 傷害</div>
+          <div class="text-[11px] text-white/50 mt-1">吸收 50% 傷害，每次 +100 可疊加</div>
         </button>
         <button @click="emit('medkit')" :disabled="!canMedkit"
           class="flex-1 p-3 rounded-xl border border-green-500/40 bg-green-900/20 text-left transition"
           :class="canMedkit ? 'hover:border-green-400 hover:bg-green-400/10 cursor-pointer' : 'opacity-50 cursor-not-allowed'">
           <div class="flex justify-between">
-            <span class="font-bold text-green-200">補血包</span>
-            <span class="font-black text-green-300">{{ state.medkitBought ? '已購買' : state.hp >= state.maxHp ? '已滿血' : '$' + MEDKIT.price }}</span>
+            <span class="font-bold text-green-200">補血包 <span class="text-green-400/70 text-[11px]">{{ state.hp }}/{{ state.maxHp }}</span></span>
+            <span class="font-black text-green-300">${{ MEDKIT.price }}</span>
           </div>
-          <div class="text-[11px] text-white/50 mt-1">回復 {{ MEDKIT.heal }} HP（每次限 1 個）</div>
+          <div class="text-[11px] text-white/50 mt-1">+{{ MEDKIT.heal }} HP 可疊加，溢出提升血量上限</div>
         </button>
         <button @click="emit('dog')" :disabled="!canDog"
           class="flex-1 p-3 rounded-xl border border-amber-500/40 bg-amber-900/20 text-left transition"

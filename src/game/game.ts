@@ -65,7 +65,6 @@ export interface GameState {
   grenades: number         // 手榴彈攜帶數
   ultCharge: number        // 大絕充能（秒，0~maxCharge）
   ultActive: boolean       // 大絕（時間緩慢）啟動中
-  medkitBought: boolean    // 本次進軍火庫是否已買補血包（每次限 1）
   dogAlive: boolean        // 是否至少有一隻軍犬存活
   dogHp: number            // 存活軍犬血量總和
   dogMax: number           // 存活軍犬血量上限總和
@@ -79,7 +78,7 @@ export function createGameState(): GameState {
     bestStreak: 0, hitMarker: 0, headshotMarker: 0, damageFlash: 0, message: '', owned: [], current: 'pistol', loadPct: 0,
     floats: [],
     difficulty: 'normal', frenzyT: 0, isBossWave: false, damageDir: 0, damageDirAt: 0,
-    metaCoins: 0, board: [], runCoins: 0, grenades: 0, ultCharge: 0, ultActive: false, medkitBought: false,
+    metaCoins: 0, board: [], runCoins: 0, grenades: 0, ultCharge: 0, ultActive: false,
     dogAlive: false, dogHp: 0, dogMax: DOG.maxHp, dogCount: 0,
   }
 }
@@ -359,7 +358,6 @@ export class Game {
     this.state.money = this.player.money
     this.state.maxHp = this.player.maxHp
     this.state.armor = Math.round(this.player.armor)
-    this.state.medkitBought = false
     this.state.kills = 0; this.state.score = 0; this.state.streak = 0; this.state.bestStreak = 0
     this.state.runCoins = 0
     this.weapons.owned = ['knife', 'pistol']
@@ -370,8 +368,8 @@ export class Game {
     this.grenades.clear()
     for (const dog of this.companions) dog.clear()
     this.state.dogAlive = false
-    this.state.dogCount = 0
     this.state.dogHp = 0
+    this.state.dogCount = 0
     this.grenadeCd = 0
     this.state.grenades = GRENADE.start
     this.state.ultCharge = 0
@@ -506,12 +504,13 @@ export class Game {
     return true
   }
 
+  // 護甲：可疊加，每次購買 +100，無上限
   buyArmor(): boolean {
-    if (this.player.armor >= 100 || this.player.money < 650) return false
+    if (this.player.money < 650) return false
     this.player.money -= 650
-    this.player.armor = 100
+    this.player.armor += 100
     this.state.money = this.player.money
-    this.state.armor = 100
+    this.state.armor = Math.round(this.player.armor)
     SFX.buy()
     return true
   }
@@ -585,12 +584,13 @@ export class Game {
     return true
   }
 
-  // 補血包：回 MEDKIT.heal，每次進軍火庫限購 1 個
+  // 補血包：可疊加購買；超過血量上限的部分直接提升上限（總血量越買越多）
   buyMedkit(): boolean {
-    if (this.state.medkitBought || this.player.hp >= this.player.maxHp || this.player.money < MEDKIT.price) return false
+    if (this.player.money < MEDKIT.price) return false
     this.player.money -= MEDKIT.price
-    this.player.heal(MEDKIT.heal)
-    this.state.medkitBought = true
+    this.player.hp += MEDKIT.heal
+    if (this.player.hp > this.player.maxHp) this.player.maxHp = this.player.hp
+    this.state.maxHp = this.player.maxHp
     this.state.money = this.player.money
     this.state.hp = Math.round(this.player.hp)
     SFX.buy()
@@ -706,7 +706,6 @@ export class Game {
       this.player.money += ECONOMY.roundReward
       this.state.money = this.player.money
       this.state.message = ''
-      this.state.medkitBought = false   // 每次進軍火庫可再買一個補血包
       this.state.phase = 'buy'
       this.input.exitLock()
       SFX.waveClear()

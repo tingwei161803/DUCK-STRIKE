@@ -20,6 +20,7 @@ import {
   WEAPONS, WeaponId, ENEMIES, EnemyId, waveSpec, ECONOMY, PLAYER,
   DIFFICULTIES, Difficulty, DROP, KILLSTREAK, PickupKind, GRENADE, ULTIMATE, MEDKIT, DOG,
   DOG_UPGRADES, DogUpgradeKind, GrenadeKind, GRENADE_KINDS, GRENADE_FX,
+  WEAPON_MODS, WeaponModKind,
 } from './config'
 import { SFX, initAudio } from './sound'
 
@@ -73,6 +74,7 @@ export interface GameState {
   dogLv: Record<DogUpgradeKind, number>   // 軍犬升級等級（本場）
   dogMode: DogMode         // 軍犬指令模式（V 鍵切換）
   grenadeKind: GrenadeKind // 目前手榴彈彈種（T 鍵切換）
+  weaponMods: Record<WeaponModKind, boolean>   // 武器改造（本場一次性購買）
 }
 
 export function createGameState(): GameState {
@@ -87,6 +89,7 @@ export function createGameState(): GameState {
     dogLv: { dmg: 0, hp: 0, spd: 0 },
     dogMode: 'follow',
     grenadeKind: 'frag',
+    weaponMods: { mag: false, pierce: false, fire: false },
   }
 }
 
@@ -218,8 +221,11 @@ export class Game {
 
   // ---- 武器命中分派：敵人 or 爆炸桶 ----
   private onWeaponHit(mesh: AbstractMesh, dmg: number, headMult: number, point: Vector3) {
-    if (mesh.metadata?.enemyRef) this.enemies.damageMesh(mesh, dmg, headMult, point)
-    else if (mesh.metadata?.barrel) this.damageBarrel(mesh.metadata.barrel, dmg)
+    if (mesh.metadata?.enemyRef) {
+      this.enemies.damageMesh(mesh, dmg, headMult, point)
+      // 燃燒彈頭改造：命中點燃，3 秒內追加 40% 燒傷
+      if (this.state.weaponMods.fire) (mesh.metadata.enemyRef as Enemy).ignite(3, dmg * 0.4)
+    } else if (mesh.metadata?.barrel) this.damageBarrel(mesh.metadata.barrel, dmg)
   }
 
   private damageBarrel(barrel: any, dmg: number) {
@@ -433,6 +439,9 @@ export class Game {
     this.state.kills = 0; this.state.score = 0; this.state.streak = 0; this.state.bestStreak = 0
     this.state.runCoins = 0
     this.weapons.owned = ['knife', 'pistol']
+    this.weapons.magMult = 1
+    this.weapons.pierce = 0
+    this.state.weaponMods = { mag: false, pierce: false, fire: false }
     this.weapons.refillAmmo()
     this.weapons.equip('pistol')
     this.enemies.reset()
@@ -668,6 +677,22 @@ export class Game {
     this.acquireCompanion().spawn(new Vector3(spawn.x, 0, spawn.z))
     this.state.money = this.player.money
     SFX.buy()
+    return true
+  }
+
+  // 武器改造：一次性購買，本場有效，作用於全部武器
+  buyWeaponMod(kind: WeaponModKind): boolean {
+    if (this.state.weaponMods[kind]) return false
+    const def = WEAPON_MODS[kind]
+    if (this.player.money < def.price) return false
+    this.player.money -= def.price
+    this.state.weaponMods[kind] = true
+    if (kind === 'mag') { this.weapons.magMult = 1.5; this.weapons.refillAmmo() }
+    else if (kind === 'pierce') this.weapons.pierce = 1
+    // fire 在 onWeaponHit 判定
+    this.state.money = this.player.money
+    SFX.buy()
+    this.syncWeaponHud()
     return true
   }
 

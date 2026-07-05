@@ -44,6 +44,8 @@ export class WeaponSystem {
   owned: WeaponId[] = ['knife', 'pistol']
   slots: Partial<Record<WeaponId, WeaponInstance>> = {}
   current: WeaponId = 'pistol'
+  magMult = 1        // 擴容彈匣倍率（武器改造）
+  pierce = 0         // 穿透彈：額外貫穿目標數（武器改造）
 
   private cooldown = 0
   private reloading = 0
@@ -94,7 +96,7 @@ export class WeaponSystem {
       (model.min.y + model.max.y) / 2 - model.minY,   // 約槍身中線（含貼地補償）
       (model.min.z + model.max.z) / 2,
     )
-    this.slots[id] = { def, holder, mag: def.magSize, reserve: def.reserve, muzzle }
+    this.slots[id] = { def, holder, mag: this.magOf(def), reserve: def.reserve, muzzle }
   }
 
   async giveWeapon(id: WeaponId, autoEquip = true) {
@@ -103,10 +105,13 @@ export class WeaponSystem {
     if (autoEquip) await this.equip(id)
   }
 
+  /** 有效彈匣容量（含擴容改造）。 */
+  private magOf(def: WeaponDef): number { return Math.round(def.magSize * this.magMult) }
+
   refillAmmo() {
     for (const id of this.owned) {
       const s = this.slots[id]; if (!s) continue
-      s.mag = s.def.magSize; s.reserve = s.def.reserve
+      s.mag = this.magOf(s.def); s.reserve = s.def.reserve
     }
     this.onAmmoChange?.()
   }
@@ -127,14 +132,14 @@ export class WeaponSystem {
   private startReload() {
     const s = this.cur
     if (s.def.melee || this.reloading > 0) return
-    if (s.mag >= s.def.magSize || s.reserve <= 0) return
+    if (s.mag >= this.magOf(s.def) || s.reserve <= 0) return
     this.reloading = s.def.reloadTime
     SFX.reload()
   }
 
   private finishReload() {
     const s = this.cur
-    const need = s.def.magSize - s.mag
+    const need = this.magOf(s.def) - s.mag
     const take = Math.min(need, s.reserve)
     s.mag += take; s.reserve -= take
     this.onAmmoChange?.()
@@ -174,6 +179,22 @@ export class WeaponSystem {
         const isEnemy = !!(hit.mesh.metadata && hit.mesh.metadata.enemyRef)
         this.effects.impact(hit.point, hit.normal, isEnemy ? 'enemy' : 'world')
         this.dealDamage(hit.mesh, s.def.damage * dmgMult, s.def.headMult, hit.point)
+        // 穿透彈改造：命中敵人後子彈續飛，貫穿後續目標（每穿一層傷害 ×0.7）
+        if (isEnemy && this.pierce > 0) {
+          let from = hit.point.add(dir.scale(0.12))
+          let dmgF = 0.7
+          for (let n = 0; n < this.pierce; n++) {
+            const h2 = this.resolveHit(from, dir, s.def.range)
+            if (!h2) break
+            const isE2 = !!(h2.mesh.metadata && h2.mesh.metadata.enemyRef)
+            this.effects.tracer(from, h2.point)
+            this.effects.impact(h2.point, h2.normal, isE2 ? 'enemy' : 'world')
+            this.dealDamage(h2.mesh, s.def.damage * dmgMult * dmgF, s.def.headMult, h2.point)
+            if (!isE2) break            // 打到牆/掩體就停
+            from = h2.point.add(dir.scale(0.12))
+            dmgF *= 0.7
+          }
+        }
       }
     }
 

@@ -223,6 +223,14 @@ export const GRENADE = {
   selfDmgMax: 10,       // 自傷上限（最多扣這麼多 HP）
 }
 
+// 武器改造（軍火庫一次性購買，本場有效，作用於全部武器）
+export const WEAPON_MODS = {
+  mag:    { name: '擴容彈匣', icon: '📦', desc: '全武器彈匣 +50%', price: 3000 },
+  pierce: { name: '穿透彈',   icon: '🎯', desc: '子彈貫穿敵人（第二目標 70% 傷害）', price: 4500 },
+  fire:   { name: '燃燒彈頭', icon: '🔥', desc: '命中點燃敵人，3 秒內追加 40% 燒傷', price: 4000 },
+} as const
+export type WeaponModKind = keyof typeof WEAPON_MODS
+
 // 手榴彈變體（T 鍵切換彈種，共用攜帶數）
 export type GrenadeKind = 'frag' | 'fire' | 'ice' | 'magnet'
 export const GRENADE_KINDS: Record<GrenadeKind, { name: string; icon: string }> = {

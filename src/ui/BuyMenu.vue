@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/game'
-import { WEAPONS, WeaponId, MEDKIT, DOG, DOG_UPGRADES, DogUpgradeKind } from '../game/config'
+import { WEAPONS, WeaponId, MEDKIT, DOG, DOG_UPGRADES, DogUpgradeKind, WEAPON_MODS, WeaponModKind } from '../game/config'
 
 const props = defineProps<{ state: GameState }>()
 const emit = defineEmits<{
@@ -10,6 +10,7 @@ const emit = defineEmits<{
   (e: 'medkit', n: number | 'max'): void
   (e: 'dog'): void
   (e: 'dogup', kind: DogUpgradeKind): void
+  (e: 'wmod', kind: WeaponModKind): void
   (e: 'next'): void
 }>()
 
@@ -35,6 +36,19 @@ const armorCost = 650
 const bulkBtns: { label: string; n: number | 'max' }[] = [
   { label: '×1', n: 1 }, { label: '×10', n: 10 }, { label: 'MAX', n: 'max' },
 ]
+
+// 武器改造：一次性購買
+const wmods = computed(() =>
+  (Object.keys(WEAPON_MODS) as WeaponModKind[]).map((kind) => {
+    const def = WEAPON_MODS[kind]
+    const owned = props.state.weaponMods[kind]
+    return {
+      kind, icon: def.icon, name: def.name, desc: def.desc, owned,
+      label: owned ? '已裝備' : `$${def.price}`,
+      can: !owned && props.state.money >= def.price,
+    }
+  }),
+)
 
 // 軍犬升級：等級/價格/可否購買
 const dogUps = computed(() =>
@@ -131,6 +145,23 @@ const dogUps = computed(() =>
         <button @click="emit('next')"
           class="flex-1 p-4 rounded-xl bg-yellow-400 text-black font-black text-lg hover:bg-yellow-300 transition cursor-pointer">
           開始第 {{ state.wave + 1 }} 波 ▶
+        </button>
+      </div>
+
+      <!-- 武器改造（一次性，本場有效） -->
+      <div class="mt-3 flex items-center gap-3">
+        <div class="text-[11px] text-purple-300/70 font-bold tracking-widest shrink-0">武器改造</div>
+        <button v-for="m in wmods" :key="m.kind" @click="emit('wmod', m.kind)" :disabled="!m.can"
+          class="flex-1 px-3 py-2 rounded-lg border text-left transition"
+          :class="[
+            m.owned ? 'border-purple-400/60 bg-purple-500/15' : 'border-purple-500/30 bg-purple-900/10',
+            m.can ? 'hover:border-purple-400 hover:bg-purple-400/10 cursor-pointer' : m.owned ? '' : 'opacity-50 cursor-not-allowed',
+          ]">
+          <div class="flex justify-between items-center">
+            <span class="text-[12px] font-bold text-purple-100">{{ m.icon }} {{ m.name }}</span>
+            <span class="text-[12px] font-black" :class="m.owned ? 'text-purple-300' : 'text-purple-300/90'">{{ m.label }}</span>
+          </div>
+          <div class="text-[10px] text-white/40">{{ m.desc }}</div>
         </button>
       </div>
 

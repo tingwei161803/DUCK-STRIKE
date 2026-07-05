@@ -45,6 +45,9 @@ export class Enemy {
   exploding = false               // 自爆兵：本幀觸發自爆
   slowT = 0                       // 冰凍減速剩餘秒數
   slowF = 1                       // 冰凍減速倍率（<1 = 變慢）
+  burnT = 0                       // 燃燒剩餘秒數（燃燒彈頭改造）
+  burnDps = 0                     // 燃燒每秒傷害
+  burnTick = 0                    // 燃燒結算計時（每 0.5s 扣一次）
   private tint: Color3 | null = null
   private mods = { hp: 1, dmg: 1, spd: 1 }   // 難度倍率
   // 王招式狀態
@@ -146,6 +149,7 @@ export class Enemy {
     this.detourT = 0
     this.exploding = false
     this.slowT = 0; this.slowF = 1
+    this.burnT = 0; this.burnDps = 0; this.burnTick = 0
     this.inst.holder.setEnabled(true)
     this.inst.holder.position.copyFrom(pos)
     this.setColliders(true)
@@ -160,6 +164,14 @@ export class Enemy {
     this.curAnim?.stop()
     g.start(loop, 1.0, g.from, g.to)
     this.curAnim = g
+  }
+
+  /** 點燃（燃燒彈頭改造）：dur 秒內共造成 total 傷害。重複點燃取較高 DPS 並刷新時間。 */
+  ignite(dur: number, total: number) {
+    if (this.state === 'dead') return
+    this.burnT = dur
+    this.burnDps = Math.max(this.burnDps, total / dur)
+    if (this.burnTick <= 0) this.burnTick = 0.5
   }
 
   hurt(dmg: number, isHead: boolean, headMult: number): { killed: boolean; isHead: boolean; dealt: number } {
@@ -447,6 +459,18 @@ export class EnemyManager {
       const ct = this.getCompanionTarget ? this.getCompanionTarget(e.inst.holder.position) : null
       const d = e.update(dt, this.player, this.map, this.scene, ct)
       if (d > 0) { dmg += d; lastFrom = e.inst.holder.position.clone() }
+      // 燃燒結算（每 0.5 秒一跳，走一般傷害流程保留擊殺獎勵）
+      if (e.burnT > 0 && e.state !== 'dead') {
+        e.burnT -= dt
+        e.burnTick -= dt
+        if (e.burnTick <= 0) {
+          e.burnTick = 0.5
+          const res = e.hurt(e.burnDps * 0.5, false, 1)
+          if (res.dealt > 0) this.onDamage?.(e.inst.holder.position.add(new Vector3(0, 1.6, 0)), res.dealt, false)
+          if (res.killed) this.onKill(e, false)
+        }
+        if (e.burnT <= 0) e.burnDps = 0
+      }
       // 自爆兵引爆（每隻只觸發一次）
       if (e.exploding) {
         e.exploding = false

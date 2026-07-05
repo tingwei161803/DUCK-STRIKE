@@ -56,8 +56,12 @@ export class Enemy {
   private bossEnraged = false
   private bossSummonStage = 0
   private maxHpRuntime = 0
+  private bossChargeCd = 6    // 衝鋒冷卻
+  private chargeT = 0         // 衝鋒進行中剩餘秒數
+  private bossSlamCd = 3      // 砸地冷卻
   bossFire?: (pos: Vector3, dir: Vector3, speed: number, dmg: number) => void
   bossSummon?: (n: number) => void
+  bossSlamFx?: (pos: Vector3, radius: number) => void   // 砸地視覺/音效（由 manager 接給 game）
   shoot?: (from: Vector3, to: Vector3) => void   // 開火曳光（視覺）
   // 頭頂血條
   private barBG!: Mesh
@@ -150,6 +154,12 @@ export class Enemy {
     this.exploding = false
     this.slowT = 0; this.slowF = 1
     this.burnT = 0; this.burnDps = 0; this.burnTick = 0
+    // 王技能狀態重置（物件池重用）＋記錄本次生成的血量上限（狂暴/召喚門檻用）
+    this.maxHpRuntime = this.hp
+    this.bossCastCd = 3; this.bossCastType = 0
+    this.bossEnraged = false; this.bossSummonStage = 0
+    this.bossChargeCd = 6; this.chargeT = 0; this.bossSlamCd = 3
+    if (this.def.boss && this.def.tint) this.tint = new Color3(this.def.tint[0], this.def.tint[1], this.def.tint[2])   // 還原狂暴染色
     this.inst.holder.setEnabled(true)
     this.inst.holder.position.copyFrom(pos)
     this.setColliders(true)
@@ -276,12 +286,12 @@ export class Enemy {
       this.play('run', true)
       this.move(dir, dt, map, pos)
     }
-    if (this.def.boss) this.updateBoss(dt, player)
+    if (this.def.boss) dmgDealt += this.updateBoss(dt, player, map)
     return dmgDealt
   }
 
-  // 王招式：狂暴化、召喚、彈幕
-  private updateBoss(dt: number, player: Player) {
+  // 王招式：狂暴化、召喚、彈幕、衝鋒、砸地。回傳對玩家造成的額外傷害。
+  private updateBoss(dt: number, player: Player, map: GameMap): number {
     const frac = this.maxHpRuntime > 0 ? this.hp / this.maxHpRuntime : 1
     // 血量 ≤35% 狂暴化（一次性）：加速 + 變紅 + 施法更快
     if (!this.bossEnraged && frac <= 0.35) {
@@ -298,6 +308,42 @@ export class Enemy {
       this.bossCastCd = this.bossEnraged ? 2.2 : 3.6
       this.castBarrage(player)
     }
+
+    let extra = 0
+    const pos = this.inst.holder.position
+    const toP = player.position.subtract(pos); toP.y = 0
+    const dist = toP.length()
+
+    // 衝鋒：距離遠時朝玩家高速突進，撞到造成重擊
+    if (this.chargeT > 0) {
+      this.chargeT -= dt
+      if (dist < 2.4) {
+        extra += this.def.damage * 1.3 * this.mods.dmg
+        player.addShake(0.8)
+        this.chargeT = 0
+      } else {
+        const dir = toP.scale(1 / dist)
+        this.move(dir, dt * 2.6, map, pos)   // 用放大的 dt 讓步伐 ×2.6（衝鋒速度）
+      }
+    } else {
+      this.bossChargeCd -= dt
+      if (this.bossChargeCd <= 0 && dist > 9) {
+        this.bossChargeCd = this.bossEnraged ? 5 : 9
+        this.chargeT = 1.3
+        SFX.waveStart()   // 衝鋒吼聲提示
+      }
+    }
+
+    // 砸地：玩家貼身時範圍重擊（有視覺爆圈提示）
+    this.bossSlamCd -= dt
+    if (this.bossSlamCd <= 0 && dist < 5) {
+      this.bossSlamCd = this.bossEnraged ? 4 : 6.5
+      const R = 6
+      extra += this.def.damage * 1.5 * (1 - dist / R) * this.mods.dmg
+      player.addShake(1)
+      this.bossSlamFx?.(pos.clone(), R)
+    }
+    return extra
   }
 
   private castBarrage(player: Player) {
@@ -395,6 +441,7 @@ export class EnemyManager {
   onDamage?: (point: Vector3, amount: number, isHead: boolean) => void
   onBomberExplode?: (pos: Vector3, radius: number, dmg: number) => void
   onEnemyShot?: (from: Vector3, to: Vector3) => void
+  onBossSlam?: (pos: Vector3, radius: number) => void
   getCompanionTarget: ((pos: Vector3) => CompanionTarget | null) | null = null   // 依敵人位置取最近的存活軍犬（引怪目標）
   bullets: BulletManager
 
@@ -419,6 +466,7 @@ export class EnemyManager {
     if (def.boss) {
       e.bossFire = (pos, dir, speed, dmg) => this.bullets.spawn(pos, dir, speed, dmg)
       e.bossSummon = (n) => this.summonAround(e, n)
+      e.bossSlamFx = (pos, r) => this.onBossSlam?.(pos, r)
     }
     this.pool.push(e)
     return e

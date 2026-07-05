@@ -166,6 +166,7 @@ export class Game {
       this.addFloat(point, String(Math.round(amount)), isHead ? '#ff5b5b' : '#ffffff', isHead)
     this.enemies.onBomberExplode = (pos, radius, dmg) => this.bomberExplode(pos, radius, dmg)
     this.enemies.onEnemyShot = (from, to) => this.effects.enemyTracer(from, to)
+    this.enemies.onBossSlam = (pos, r) => { this.effects.blast(pos, r); SFX.explode() }
     await this.enemies.preload()
 
     this.pickups = new PickupManager(s, this.player, (kind) => this.collect(kind))

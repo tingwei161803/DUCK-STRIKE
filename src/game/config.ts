@@ -223,6 +223,20 @@ export const GRENADE = {
   selfDmgMax: 10,       // 自傷上限（最多扣這麼多 HP）
 }
 
+// 手榴彈變體（T 鍵切換彈種，共用攜帶數）
+export type GrenadeKind = 'frag' | 'fire' | 'ice' | 'magnet'
+export const GRENADE_KINDS: Record<GrenadeKind, { name: string; icon: string }> = {
+  frag:   { name: '破片', icon: '💣' },
+  fire:   { name: '燃燒', icon: '🔥' },
+  ice:    { name: '冰凍', icon: '❄️' },
+  magnet: { name: '吸引', icon: '🧲' },
+}
+export const GRENADE_FX = {
+  fire:   { directFactor: 0.35, zoneRadius: 7, zoneDps: 55, zoneDuration: 4 },   // 火海：直傷少、持續燒
+  ice:    { directFactor: 0.4, slowFactor: 0.35, slowDuration: 4 },              // 冰凍：範圍減速
+  magnet: { directFactor: 0.3, pullRadiusMult: 1.5, pullFrac: 0.8 },             // 吸引：把敵人拉向爆點
+}
+
 // 連殺獎勵門檻
 export const KILLSTREAK = {
   heal: 5,        // 連殺 5 → 回血

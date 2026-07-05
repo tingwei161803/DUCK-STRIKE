@@ -5,7 +5,7 @@
 import { Scene, Vector3 } from '@babylonjs/core'
 import { loadModel, instantiateStatic, scaleForHeight, LoadedModel, ModelInstance } from './model-loader'
 import { GameMap } from './map'
-import { GRENADE, WORLD } from './config'
+import { GRENADE, WORLD, GrenadeKind } from './config'
 
 interface Live {
   inst: ModelInstance
@@ -13,18 +13,19 @@ interface Live {
   spin: Vector3
   fuse: number
   active: boolean
+  kind: GrenadeKind
 }
 
 export class GrenadeManager {
   scene: Scene
   map: GameMap
-  onExplode: (pos: Vector3) => void
+  onExplode: (pos: Vector3, kind: GrenadeKind) => void
 
   private model!: LoadedModel
   private scale = 1
   private pool: Live[] = []
 
-  constructor(scene: Scene, map: GameMap, onExplode: (pos: Vector3) => void) {
+  constructor(scene: Scene, map: GameMap, onExplode: (pos: Vector3, kind: GrenadeKind) => void) {
     this.scene = scene
     this.map = map
     this.onExplode = onExplode
@@ -39,15 +40,16 @@ export class GrenadeManager {
     const inst = instantiateStatic(this.scene, this.model, this.scale)
     inst.meshes.forEach((m) => { m.isPickable = false; m.checkCollisions = false })
     inst.holder.setEnabled(false)
-    const g: Live = { inst, vel: Vector3.Zero(), spin: Vector3.Zero(), fuse: 0, active: false }
+    const g: Live = { inst, vel: Vector3.Zero(), spin: Vector3.Zero(), fuse: 0, active: false, kind: 'frag' }
     this.pool.push(g)
     return g
   }
 
-  /** 從 origin 朝 dir 投擲一顆手榴彈（含上拋分量）。 */
-  throw(origin: Vector3, dir: Vector3) {
+  /** 從 origin 朝 dir 投擲一顆手榴彈（含上拋分量）。kind 決定爆炸效果（投擲當下鎖定）。 */
+  throw(origin: Vector3, dir: Vector3, kind: GrenadeKind = 'frag') {
     const g = this.pool.find((x) => !x.active) || this.make()
     g.active = true
+    g.kind = kind
     g.inst.holder.setEnabled(true)
     g.inst.holder.position.copyFrom(origin)
     g.vel = dir.normalize().scale(GRENADE.throwSpeed).add(new Vector3(0, GRENADE.throwUp, 0))
@@ -92,7 +94,7 @@ export class GrenadeManager {
       if (g.fuse <= 0) {
         const pos = p.clone()
         this.kill(g)
-        this.onExplode(pos)
+        this.onExplode(pos, g.kind)
       }
     }
   }

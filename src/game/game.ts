@@ -19,7 +19,7 @@ import { Meta } from './meta'
 import {
   WEAPONS, WeaponId, ENEMIES, EnemyId, waveSpec, ECONOMY, PLAYER,
   DIFFICULTIES, Difficulty, DROP, KILLSTREAK, PickupKind, GRENADE, ULTIMATE, MEDKIT, DOG,
-  DOG_UPGRADES, DogUpgradeKind,
+  DOG_UPGRADES, DogUpgradeKind, GrenadeKind, GRENADE_KINDS, GRENADE_FX,
 } from './config'
 import { SFX, initAudio } from './sound'
 
@@ -72,6 +72,7 @@ export interface GameState {
   dogCount: number         // 存活軍犬數量
   dogLv: Record<DogUpgradeKind, number>   // 軍犬升級等級（本場）
   dogMode: DogMode         // 軍犬指令模式（V 鍵切換）
+  grenadeKind: GrenadeKind // 目前手榴彈彈種（T 鍵切換）
 }
 
 export function createGameState(): GameState {
@@ -85,6 +86,7 @@ export function createGameState(): GameState {
     dogAlive: false, dogHp: 0, dogMax: DOG.maxHp, dogCount: 0,
     dogLv: { dmg: 0, hp: 0, spd: 0 },
     dogMode: 'follow',
+    grenadeKind: 'frag',
   }
 }
 
@@ -166,7 +168,7 @@ export class Game {
     this.pickups = new PickupManager(s, this.player, (kind) => this.collect(kind))
     await this.pickups.preload()
 
-    this.grenades = new GrenadeManager(s, this.map, (pos) => this.grenadeExplode(pos))
+    this.grenades = new GrenadeManager(s, this.map, (pos, kind) => this.grenadeExplode(pos, kind))
     await this.grenades.preload()
 
     // 軍犬：找怪咬怪；並登記為敵人的引怪目標（可購買多隻，敵人各自追最近的一隻）
@@ -277,28 +279,91 @@ export class Game {
     this.addFloat(pos.add(new Vector3(0, 1.4, 0)), '💥', '#ff7a00', true)
   }
 
-  // ---- 手榴彈爆炸：範圍傷敵 + 自傷 + 引爆鄰近桶 ----
-  private grenadeExplode(pos: Vector3) {
+  // ---- 手榴彈爆炸：依彈種分派效果 ----
+  private grenadeExplode(pos: Vector3, kind: GrenadeKind = 'frag') {
     const R = GRENADE.radius
-    this.effects.blast(pos, R)
+    this.effects.blast(pos, kind === 'fire' ? R * 0.7 : R)
     SFX.explode()
-    this.enemies.explodeDamage(pos, R, GRENADE.damage)
-    const pd = Vector3.Distance(this.player.position, pos)
-    if (pd < R && this.player.alive) {
-      const selfDmg = Math.min(GRENADE.selfDmgMax, GRENADE.damage * GRENADE.playerDmgFactor * (1 - pd / R))
-      this.player.takeDamage(selfDmg)
-      this.registerDamageFrom(pos)
-      this.player.addShake(0.7)
-    } else if (pd < R * 2) {
-      this.player.addShake(0.35 * (1 - pd / (R * 2)))
+
+    if (kind === 'frag') {
+      // 破片：全額範圍傷害 + 自傷 + 連鎖引爆
+      this.enemies.explodeDamage(pos, R, GRENADE.damage)
+      const pd = Vector3.Distance(this.player.position, pos)
+      if (pd < R && this.player.alive) {
+        const selfDmg = Math.min(GRENADE.selfDmgMax, GRENADE.damage * GRENADE.playerDmgFactor * (1 - pd / R))
+        this.player.takeDamage(selfDmg)
+        this.registerDamageFrom(pos)
+        this.player.addShake(0.7)
+      } else if (pd < R * 2) {
+        this.player.addShake(0.35 * (1 - pd / (R * 2)))
+      }
+      this.addFloat(pos.add(new Vector3(0, 1.5, 0)), 'BOOM!', '#ff7a00', true)
+    } else if (kind === 'fire') {
+      // 燃燒：直傷少，留下火海持續燒（只燒敵人）
+      const fx = GRENADE_FX.fire
+      this.enemies.explodeDamage(pos, R * 0.7, GRENADE.damage * fx.directFactor)
+      this.addZone(pos, fx.zoneRadius, fx.zoneDuration, new Color3(1, 0.35, 0.05), 0.3, fx.zoneDps)
+      this.addFloat(pos.add(new Vector3(0, 1.5, 0)), '🔥 火海!', '#ff5b30', true)
+    } else if (kind === 'ice') {
+      // 冰凍：中等直傷 + 大範圍減速
+      const fx = GRENADE_FX.ice
+      this.enemies.explodeDamage(pos, R, GRENADE.damage * fx.directFactor)
+      this.enemies.slowInRadius(pos, R, fx.slowDuration, fx.slowFactor)
+      this.addZone(pos, R * 0.8, 0.9, new Color3(0.3, 0.75, 1), 0.35, 0)
+      this.addFloat(pos.add(new Vector3(0, 1.5, 0)), '❄️ 冰凍!', '#54c8ff', true)
+    } else {
+      // 吸引：把敵人拉成一坨 + 小直傷（配合另一顆破片收割）
+      const fx = GRENADE_FX.magnet
+      this.enemies.pullToward(pos, R * fx.pullRadiusMult, fx.pullFrac)
+      this.enemies.explodeDamage(pos, R * 0.6, GRENADE.damage * fx.directFactor)
+      this.addZone(pos, R * 0.7, 0.6, new Color3(0.75, 0.5, 1), 0.35, 0)
+      this.addFloat(pos.add(new Vector3(0, 1.5, 0)), '🧲 吸引!', '#c084fc', true)
     }
-    this.addFloat(pos.add(new Vector3(0, 1.5, 0)), 'BOOM!', '#ff7a00', true)
-    // 引爆範圍內的爆炸桶（連鎖）
-    for (const b of this.map.barrels) {
-      if (!b.exploded && Vector3.Distance(b.pos, pos) < R) {
-        setTimeout(() => this.explodeBarrel(b), 80 + Math.random() * 120)
+
+    // 引爆範圍內的爆炸桶（連鎖）：破片 / 燃燒才會
+    if (kind === 'frag' || kind === 'fire') {
+      for (const b of this.map.barrels) {
+        if (!b.exploded && Vector3.Distance(b.pos, pos) < R) {
+          setTimeout(() => this.explodeBarrel(b), 80 + Math.random() * 120)
+        }
       }
     }
+  }
+
+  // ---- 地面效果區（火海等）：半透明色盤 + 週期傷害 ----
+  private zones: { mesh: AbstractMesh; mat: StandardMaterial; pos: Vector3; r: number; t: number; dur: number; tick: number; dps: number; alpha: number }[] = []
+
+  private addZone(pos: Vector3, r: number, dur: number, color: Color3, alpha: number, dps: number) {
+    const mesh = MeshBuilder.CreateDisc('zone', { radius: r, tessellation: 40 }, this.scene)
+    mesh.rotation.x = Math.PI / 2
+    mesh.position.set(pos.x, 0.06, pos.z)
+    mesh.isPickable = false
+    const mat = new StandardMaterial('zoneMat', this.scene)
+    mat.emissiveColor = color
+    mat.diffuseColor = new Color3(0, 0, 0)
+    mat.disableLighting = true
+    mat.alpha = alpha
+    mesh.material = mat
+    this.zones.push({ mesh, mat, pos: pos.clone(), r, t: dur, dur, tick: 0.25, dps, alpha })
+  }
+
+  private updateZones(dt: number) {
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i]
+      z.t -= dt
+      if (z.dps > 0) {
+        z.tick -= dt
+        if (z.tick <= 0) { z.tick = 0.5; this.enemies.explodeDamage(z.pos, z.r, z.dps * 0.5) }
+      }
+      // 淡出（最後 0.6 秒）
+      z.mat.alpha = z.alpha * Math.max(0, Math.min(1, z.t / 0.6))
+      if (z.t <= 0) { z.mesh.dispose(); this.zones.splice(i, 1) }
+    }
+  }
+
+  private clearZones() {
+    for (const z of this.zones) z.mesh.dispose()
+    this.zones.length = 0
   }
 
   // ---- 受擊方向（給 HUD 邊緣指示器）----
@@ -383,6 +448,8 @@ export class Game {
     this.state.dogMode = 'follow'
     this.grenadeCd = 0
     this.state.grenades = GRENADE.start
+    this.state.grenadeKind = 'frag'
+    this.clearZones()
     this.state.ultCharge = 0
     this.state.ultActive = false
     this.killAccum = 0
@@ -674,6 +741,7 @@ export class Game {
       if (this.input.justPressed('KeyG')) this.tryThrowGrenade()
       if (this.input.justPressed('KeyF')) this.toggleUltimate()
       if (this.input.justPressed('KeyV')) this.cycleDogMode()
+      if (this.input.justPressed('KeyT')) this.cycleGrenadeKind()
       // 大絕時間緩慢：世界用縮放 dt，玩家/武器維持真實 dt（消耗以真實時間計）
       let slowF = 1
       if (this.state.ultActive) {
@@ -687,6 +755,7 @@ export class Game {
       this.enemies.update(wdt)
       this.pickups.update(wdt)
       this.grenades.update(wdt)
+      this.updateZones(wdt)
       for (const dog of this.companions) dog.update(dt)   // 軍犬（同伴）維持全速，不受大絕時間縮放
       this.effects.update(wdt)
       this.tickWave(dt)
@@ -708,8 +777,17 @@ export class Game {
     const cam = this.player.camera
     const dir = cam.getForwardRay().direction.normalize()
     const origin = cam.position.add(dir.scale(0.8))
-    this.grenades.throw(origin, dir)
+    this.grenades.throw(origin, dir, this.state.grenadeKind)
     SFX.throwGrenade()
+  }
+
+  // ---- 手榴彈彈種：T 鍵循環 破片 → 燃燒 → 冰凍 → 吸引 ----
+  private cycleGrenadeKind() {
+    const order: GrenadeKind[] = ['frag', 'fire', 'ice', 'magnet']
+    const next = order[(order.indexOf(this.state.grenadeKind) + 1) % order.length]
+    this.state.grenadeKind = next
+    const k = GRENADE_KINDS[next]
+    this.floatAtPlayer(`手榴彈：${k.icon} ${k.name}彈`, '#ffcc66')
   }
 
   // ---- 軍犬指令：V 鍵循環 跟隨 → 駐守 → 出擊 ----

@@ -43,6 +43,8 @@ export class Enemy {
   private curAnim: AnimationGroup | null = null
   private targetHeight: number
   exploding = false               // 自爆兵：本幀觸發自爆
+  slowT = 0                       // 冰凍減速剩餘秒數
+  slowF = 1                       // 冰凍減速倍率（<1 = 變慢）
   private tint: Color3 | null = null
   private mods = { hp: 1, dmg: 1, spd: 1 }   // 難度倍率
   // 王招式狀態
@@ -143,6 +145,7 @@ export class Enemy {
     this.attackCd = 0
     this.detourT = 0
     this.exploding = false
+    this.slowT = 0; this.slowF = 1
     this.inst.holder.setEnabled(true)
     this.inst.holder.position.copyFrom(pos)
     this.setColliders(true)
@@ -200,6 +203,8 @@ export class Enemy {
       if (this.deathT <= 0) this.deactivate()
       return 0
     }
+
+    if (this.slowT > 0) { this.slowT -= dt; if (this.slowT <= 0) this.slowF = 1 }
 
     const pos = this.inst.holder.position
     // 目標選擇：軍犬存活、且比玩家近又在引怪範圍內 → 轉去攻擊狗（引怪）
@@ -310,7 +315,7 @@ export class Enemy {
   despawn() { this.deactivate() }
 
   private move(dir: Vector3, dt: number, map: GameMap, pos: Vector3): boolean {
-    const step = this.def.speed * this.mods.spd * dt
+    const step = this.def.speed * this.mods.spd * (this.slowT > 0 ? this.slowF : 1) * dt
     const h = WORLD.arenaHalf - 1
     const apply = (vx: number, vz: number) => {
       const nx = pos.x + vx, nz = pos.z + vz
@@ -476,6 +481,30 @@ export class EnemyManager {
         if (res.dealt > 0) this.onDamage?.(e.inst.holder.position.add(new Vector3(0, 1.4, 0)), res.dealt, false)
         if (res.killed) this.onKill(e, false)
       }
+    }
+  }
+
+  /** 冰凍手榴彈：範圍內敵人減速。 */
+  slowInRadius(center: Vector3, radius: number, duration: number, factor: number) {
+    for (const e of this.alive) {
+      if (e.state === 'dead') continue
+      if (Vector3.Distance(e.inst.holder.position, center) < radius) {
+        e.slowT = Math.max(e.slowT, duration)
+        e.slowF = factor
+      }
+    }
+  }
+
+  /** 吸引手榴彈：把範圍內敵人往爆點拉（比例插值，撞掩體則不動）。 */
+  pullToward(center: Vector3, radius: number, frac: number) {
+    for (const e of this.alive) {
+      if (e.state === 'dead') continue
+      const p = e.inst.holder.position
+      const d = Vector3.Distance(p, center)
+      if (d >= radius || d < 0.5) continue
+      const nx = p.x + (center.x - p.x) * frac
+      const nz = p.z + (center.z - p.z) * frac
+      if (!this.map.blocked(nx, nz, 0.5)) { p.x = nx; p.z = nz }
     }
   }
 

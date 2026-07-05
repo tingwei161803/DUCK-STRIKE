@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../game/game'
-import { WEAPONS, ULTIMATE } from '../game/config'
+import { WEAPONS, ULTIMATE, GRENADE_KINDS } from '../game/config'
 
 const props = defineProps<{ state: GameState; now: number }>()
 
@@ -106,8 +106,8 @@ function floatStyle(f: any) {
         <div class="text-xs tracking-widest text-white/60">ARMOR</div>
       </div>
       <div>
-        <div class="text-3xl font-bold tabular-nums" :class="state.grenades > 0 ? 'text-orange-300' : 'text-white/30'">💣 {{ state.grenades }}</div>
-        <div class="text-xs tracking-widest text-white/60">GRENADE · G</div>
+        <div class="text-3xl font-bold tabular-nums" :class="state.grenades > 0 ? 'text-orange-300' : 'text-white/30'">{{ GRENADE_KINDS[state.grenadeKind].icon }} {{ state.grenades }}</div>
+        <div class="text-xs tracking-widest text-white/60">{{ GRENADE_KINDS[state.grenadeKind].name }}彈 · G 丟 T 切</div>
       </div>
     </div>
     <!-- 軍犬血量 -->

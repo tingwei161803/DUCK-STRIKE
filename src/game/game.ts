@@ -4,7 +4,7 @@
 // ============================================================================
 import {
   Engine, Scene, Vector3, HemisphericLight, DirectionalLight, Color3, Color4,
-  Ray, GlowLayer, AbstractMesh, MeshBuilder, StandardMaterial, Matrix,
+  Ray, GlowLayer, AbstractMesh, MeshBuilder, StandardMaterial, Matrix, SpotLight,
 } from '@babylonjs/core'
 import { Input } from './input'
 import { Player } from './player'
@@ -75,6 +75,7 @@ export interface GameState {
   dogMode: DogMode         // 軍犬指令模式（V 鍵切換）
   grenadeKind: GrenadeKind // 目前手榴彈彈種（T 鍵切換）
   weaponMods: Record<WeaponModKind, boolean>   // 武器改造（本場一次性購買）
+  isNight: boolean         // 黑夜中（王波）
 }
 
 export function createGameState(): GameState {
@@ -90,6 +91,7 @@ export function createGameState(): GameState {
     dogMode: 'follow',
     grenadeKind: 'frag',
     weaponMods: { mag: false, pierce: false, fire: false },
+    isNight: false,
   }
 }
 
@@ -107,6 +109,9 @@ export class Game {
   companions: Companion[] = []   // 軍犬同伴池（最多 DOG.maxCount 隻存活）
   private dogMods = { dmg: 1, hp: 1, spd: 1 }   // 軍犬升級倍率（全體共用，傳參照給 Companion）
   private dogCmd: { mode: DogMode } = { mode: 'follow' }   // 軍犬指令（全體共用參照）
+  private hemi!: HemisphericLight
+  private sun!: DirectionalLight
+  private flashlight!: SpotLight   // 黑夜手電筒（掛相機）
   state: GameState
 
   private spawnQueue: EnemyId[] = []
@@ -143,6 +148,8 @@ export class Game {
     const dir = new DirectionalLight('sun', new Vector3(-0.5, -1, -0.4), s)
     dir.intensity = 1.0
     dir.position = new Vector3(40, 60, 40)
+    this.hemi = hemi
+    this.sun = dir
 
     const glow = new GlowLayer('glow', s)
     glow.intensity = 0.7
@@ -151,6 +158,12 @@ export class Game {
     this.player = new Player(s, this.input)
     this.player.onDamage = () => { this.state.damageFlash = performance.now() }
     this.player.onDeath = () => this.gameOver()
+
+    // 黑夜手電筒：位置/方向每幀跟隨相機
+    this.flashlight = new SpotLight('flashlight', Vector3.Zero(), new Vector3(0, 0, 1), 0.7, 14, s)
+    this.flashlight.intensity = 0
+    this.flashlight.range = 70
+    this.flashlight.diffuse = new Color3(1, 0.95, 0.8)
 
     this.effects = new Effects(s)
     this.map = new GameMap(s)
@@ -489,6 +502,7 @@ export class Game {
     this.state.wave = wave
     const spec = waveSpec(wave)
     this.state.isBossWave = spec.boss
+    this.setNight(spec.boss)   // 王波 = 黑夜
     this.spawnQueue = []
     if (spec.boss) {
       const bossCount = spec.types.filter((t) => t === 'boss').length || 1
@@ -507,7 +521,7 @@ export class Game {
     this.spawnTimer = 0.5
     this.waveActive = true
     this.weapons.refillAmmo()
-    const msg = spec.boss ? `⚠ 王波 — 第 ${wave} 波` : `第 ${wave} 波`
+    const msg = spec.boss ? `🌙 黑夜王波 — 第 ${wave} 波` : `第 ${wave} 波`
     this.state.message = msg
     SFX.waveStart()
     setTimeout(() => { if (this.state.message === msg) this.state.message = '' }, 1800)
@@ -567,6 +581,7 @@ export class Game {
 
   private gameOver() {
     this.state.phase = 'dead'
+    this.setNight(false)
     this.state.ultActive = false
     this.state.message = ''
     SFX.gameOver()
@@ -784,6 +799,12 @@ export class Game {
       this.updateZones(wdt)
       for (const dog of this.companions) dog.update(dt)   // 軍犬（同伴）維持全速，不受大絕時間縮放
       this.effects.update(wdt)
+      // 手電筒跟隨相機（黑夜才有強度）
+      if (this.flashlight.intensity > 0) {
+        const cam = this.player.camera
+        this.flashlight.position.copyFrom(cam.position)
+        this.flashlight.direction = cam.getForwardRay().direction
+      }
       this.tickWave(dt)
       this.syncStatusHud()
     } else {
@@ -805,6 +826,26 @@ export class Game {
     const origin = cam.position.add(dir.scale(0.8))
     this.grenades.throw(origin, dir, this.state.grenadeKind)
     SFX.throwGrenade()
+  }
+
+  // ---- 晝夜：王波進入黑夜（霧近、光暗、開手電筒），波次結束回到白天 ----
+  private setNight(on: boolean) {
+    this.state.isNight = on
+    if (on) {
+      this.hemi.intensity = 0.18
+      this.sun.intensity = 0.08
+      this.scene.clearColor = new Color4(0.02, 0.03, 0.07, 1)
+      this.scene.fogColor = new Color3(0.02, 0.03, 0.07)
+      this.scene.fogStart = 18; this.scene.fogEnd = 55
+      this.flashlight.intensity = 2.2
+    } else {
+      this.hemi.intensity = 0.85
+      this.sun.intensity = 1.0
+      this.scene.clearColor = new Color4(0.45, 0.55, 0.68, 1)
+      this.scene.fogColor = new Color3(0.45, 0.55, 0.68)
+      this.scene.fogStart = 70; this.scene.fogEnd = 160
+      this.flashlight.intensity = 0
+    }
   }
 
   // ---- 手榴彈彈種：T 鍵循環 破片 → 燃燒 → 冰凍 → 吸引 ----
@@ -856,6 +897,7 @@ export class Game {
     } else if (this.enemies.aliveCount === 0 && this.enemies.pendingDead === 0) {
       // 波次完成
       this.waveActive = false
+      this.setNight(false)   // 回到白天
       this.player.money += ECONOMY.roundReward
       this.state.money = this.player.money
       this.state.message = ''

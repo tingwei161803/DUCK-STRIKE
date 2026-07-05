@@ -5,7 +5,7 @@ import { getPlayerName, setPlayerName, fetchOnline, fetchStats, type GlobalStats
 
 const props = defineProps<{ bestScore: number; metaCoins: number }>()
 const emit = defineEmits<{
-  (e: 'start', difficulty: Difficulty): void
+  (e: 'start', difficulty: Difficulty, endless: boolean): void
   (e: 'leaderboard'): void
   (e: 'messages'): void
   (e: 'upgrades'): void
@@ -16,6 +16,7 @@ const emit = defineEmits<{
 const diffs = Object.entries(DIFFICULTIES).map(([id, d]) => ({ id: id as Difficulty, name: d.name }))
 const name = ref(getPlayerName())
 const selectedDiff = ref<Difficulty>('normal')
+const endless = ref(false)
 const canStart = computed(() => name.value.trim().length > 0)
 
 const online = ref<number | null>(null)
@@ -25,7 +26,7 @@ const hasStats = ref(false)
 let timer = 0
 
 function saveName() { setPlayerName(name.value); name.value = getPlayerName() }
-function onStart() { if (!canStart.value) return; saveName(); emit('start', selectedDiff.value) }
+function onStart() { if (!canStart.value) return; saveName(); emit('start', selectedDiff.value, endless.value) }
 
 async function refreshOnline() {
   const d = await fetchOnline()
@@ -77,6 +78,16 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             {{ d.name }}
           </button>
         </div>
+      </div>
+
+      <!-- 無盡模式 -->
+      <div class="mt-3 flex justify-center">
+        <button @click="endless = !endless"
+          class="px-4 py-2 rounded-lg font-bold text-sm transition cursor-pointer flex items-center gap-2"
+          :class="endless ? 'bg-red-500/80 text-white' : 'bg-white/10 text-white/60 hover:bg-white/20'">
+          <span>{{ endless ? '🔥' : '⚡' }}</span> 無盡模式{{ endless ? '：開' : '' }}
+          <span class="text-[10px] opacity-70">（軍火庫限時 8 秒，波次連續不斷）</span>
+        </button>
       </div>
 
       <!-- CTA -->

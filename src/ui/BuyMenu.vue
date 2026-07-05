@@ -145,6 +145,7 @@ const dogUps = computed(() =>
         <button @click="emit('next')"
           class="flex-1 p-4 rounded-xl bg-yellow-400 text-black font-black text-lg hover:bg-yellow-300 transition cursor-pointer">
           開始第 {{ state.wave + 1 }} 波 ▶
+          <span v-if="state.endless" class="block text-sm font-bold text-black/60">⏱ {{ Math.ceil(state.buyCountdown) }} 秒後自動開始</span>
         </button>
       </div>
 

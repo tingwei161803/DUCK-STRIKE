@@ -59,8 +59,9 @@ watch(() => state.phase, (p, prev) => {
 
 onUnmounted(() => { cancelAnimationFrame(raf); if (hbTimer) clearInterval(hbTimer); game?.dispose() })
 
-function start(diff: Difficulty) { selectedDiff.value = diff; game?.start(diff) }
-function restart() { game?.start(selectedDiff.value) }
+const selectedEndless = ref(false)
+function start(diff: Difficulty, endless = false) { selectedDiff.value = diff; selectedEndless.value = endless; game?.start(diff, { endless }) }
+function restart() { game?.start(selectedDiff.value, { endless: selectedEndless.value }) }
 function backToMenu() { refreshMeta(); menuScreen.value = 'home'; state.phase = 'menu' }
 function closeUpgrades() { showUpgrades.value = false; refreshMeta() }
 function buy(id: WeaponId) { game?.buy(id) }

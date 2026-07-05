@@ -77,6 +77,8 @@ export interface GameState {
   weaponMods: Record<WeaponModKind, boolean>   // 武器改造（本場一次性購買）
   isNight: boolean         // 黑夜中（王波）
   killCamAt: number        // 擊殺慢鏡頭觸發時間戳（HUD 疊加電影黑邊用）
+  endless: boolean         // 無盡模式：軍火庫限時，波次自動連續
+  buyCountdown: number     // 無盡模式軍火庫倒數（秒）
 }
 
 export function createGameState(): GameState {
@@ -94,6 +96,7 @@ export function createGameState(): GameState {
     weaponMods: { mag: false, pierce: false, fire: false },
     isNight: false,
     killCamAt: 0,
+    endless: false, buyCountdown: 0,
   }
 }
 
@@ -432,9 +435,12 @@ export class Game {
     for (let i = f.length - 1; i >= 0; i--) if (now - f[i].born > 900) f.splice(i, 1)
   }
 
+  private buyT = 0   // 無盡模式軍火庫倒數
+
   // ================= 狀態流程 =================
-  start(difficulty: Difficulty = 'normal') {
+  start(difficulty: Difficulty = 'normal', opts: { endless?: boolean } = {}) {
     initAudio()
+    this.state.endless = !!opts.endless
     // 難度
     this.state.difficulty = difficulty
     const diff = DIFFICULTIES[difficulty]
@@ -821,6 +827,12 @@ export class Game {
     } else {
       // 非遊玩仍渲染 + 更新特效淡出
       this.effects.update(dt)
+      // 無盡模式：軍火庫限時倒數，到 0 自動開下一波
+      if (phase === 'buy' && this.state.endless) {
+        this.buyT -= dt
+        this.state.buyCountdown = Math.max(0, this.buyT)
+        if (this.buyT <= 0) this.nextWave()
+      }
     }
 
     this.cleanupFloats()
@@ -914,6 +926,7 @@ export class Game {
       this.state.money = this.player.money
       this.state.message = ''
       this.state.phase = 'buy'
+      if (this.state.endless) { this.buyT = 8; this.state.buyCountdown = 8 }   // 無盡：限時軍火庫
       this.input.exitLock()
       SFX.waveClear()
     }

@@ -18,6 +18,11 @@ let DOG_MODEL: LoadedModel | null = null
 // 全體軍犬共用的升級倍率（由 game.ts 持有並傳入同一參照）
 export interface DogMods { dmg: number; hp: number; spd: number }
 
+// 軍犬指令模式（V 鍵切換，全體共用）：
+// follow=跟隨（預設，附近找怪）；guard=駐守（只咬玩家身邊的敵人）；attack=出擊（全圖搜敵）
+export type DogMode = 'follow' | 'guard' | 'attack'
+export interface DogCommand { mode: DogMode }
+
 export class Companion {
   scene: Scene
   player: Player
@@ -25,6 +30,7 @@ export class Companion {
   findEnemy: (pos: Vector3, range: number) => Enemy | null
   damageEnemy: (e: Enemy, dmg: number) => void
   mods: DogMods
+  cmd: DogCommand
 
   inst: ModelInstance | null = null
   hp = 0
@@ -40,10 +46,12 @@ export class Companion {
     findEnemy: (pos: Vector3, range: number) => Enemy | null,
     damageEnemy: (e: Enemy, dmg: number) => void,
     mods: DogMods = { dmg: 1, hp: 1, spd: 1 },
+    cmd: DogCommand = { mode: 'follow' },
   ) {
     this.scene = scene; this.player = player; this.map = map
     this.findEnemy = findEnemy; this.damageEnemy = damageEnemy
     this.mods = mods
+    this.cmd = cmd
   }
 
   /** 目前血量上限（含升級倍率）。 */
@@ -111,7 +119,11 @@ export class Companion {
     if (this.biteCd > 0) this.biteCd -= dt
     const pos = this.inst.holder.position
 
-    const enemy = this.findEnemy(pos, DOG.seekRange)
+    // 依指令模式決定找怪範圍：駐守=以玩家為中心的引怪圈；出擊=全圖；跟隨=自身附近
+    const mode = this.cmd.mode
+    const enemy = mode === 'guard'
+      ? this.findEnemy(this.player.position, DOG.aggroRange)
+      : this.findEnemy(pos, mode === 'attack' ? 9999 : DOG.seekRange)
     this.curTarget = enemy
     let target: Vector3
     let biteMode = false

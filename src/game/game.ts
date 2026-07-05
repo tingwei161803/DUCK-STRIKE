@@ -14,7 +14,7 @@ import { WeaponSystem } from './weapons'
 import { EnemyManager, Enemy } from './enemies'
 import { PickupManager } from './pickups'
 import { GrenadeManager } from './grenades'
-import { Companion } from './companion'
+import { Companion, DogMode } from './companion'
 import { Meta } from './meta'
 import {
   WEAPONS, WeaponId, ENEMIES, EnemyId, waveSpec, ECONOMY, PLAYER,
@@ -71,6 +71,7 @@ export interface GameState {
   dogMax: number           // 存活軍犬血量上限總和
   dogCount: number         // 存活軍犬數量
   dogLv: Record<DogUpgradeKind, number>   // 軍犬升級等級（本場）
+  dogMode: DogMode         // 軍犬指令模式（V 鍵切換）
 }
 
 export function createGameState(): GameState {
@@ -83,6 +84,7 @@ export function createGameState(): GameState {
     metaCoins: 0, board: [], runCoins: 0, grenades: 0, ultCharge: 0, ultActive: false,
     dogAlive: false, dogHp: 0, dogMax: DOG.maxHp, dogCount: 0,
     dogLv: { dmg: 0, hp: 0, spd: 0 },
+    dogMode: 'follow',
   }
 }
 
@@ -99,6 +101,7 @@ export class Game {
   grenades!: GrenadeManager
   companions: Companion[] = []   // 軍犬同伴池（最多 DOG.maxCount 隻存活）
   private dogMods = { dmg: 1, hp: 1, spd: 1 }   // 軍犬升級倍率（全體共用，傳參照給 Companion）
+  private dogCmd: { mode: DogMode } = { mode: 'follow' }   // 軍犬指令（全體共用參照）
   state: GameState
 
   private spawnQueue: EnemyId[] = []
@@ -376,6 +379,8 @@ export class Game {
     this.state.dogCount = 0
     this.state.dogLv = { dmg: 0, hp: 0, spd: 0 }
     this.dogMods.dmg = 1; this.dogMods.hp = 1; this.dogMods.spd = 1
+    this.dogCmd.mode = 'follow'
+    this.state.dogMode = 'follow'
     this.grenadeCd = 0
     this.state.grenades = GRENADE.start
     this.state.ultCharge = 0
@@ -555,6 +560,7 @@ export class Game {
       (pos, range) => this.pickDogTarget(dog, pos, range),
       (e, dmg) => this.enemies.biteDamage(e, dmg),
       this.dogMods,
+      this.dogCmd,
     )
     this.companions.push(dog)
     return dog
@@ -667,6 +673,7 @@ export class Game {
       if (this.grenadeCd > 0) this.grenadeCd -= dt
       if (this.input.justPressed('KeyG')) this.tryThrowGrenade()
       if (this.input.justPressed('KeyF')) this.toggleUltimate()
+      if (this.input.justPressed('KeyV')) this.cycleDogMode()
       // 大絕時間緩慢：世界用縮放 dt，玩家/武器維持真實 dt（消耗以真實時間計）
       let slowF = 1
       if (this.state.ultActive) {
@@ -703,6 +710,16 @@ export class Game {
     const origin = cam.position.add(dir.scale(0.8))
     this.grenades.throw(origin, dir)
     SFX.throwGrenade()
+  }
+
+  // ---- 軍犬指令：V 鍵循環 跟隨 → 駐守 → 出擊 ----
+  private cycleDogMode() {
+    const order: DogMode[] = ['follow', 'guard', 'attack']
+    const names: Record<DogMode, string> = { follow: '🐕 跟隨', guard: '🛡 駐守', attack: '⚔ 出擊' }
+    const next = order[(order.indexOf(this.dogCmd.mode) + 1) % order.length]
+    this.dogCmd.mode = next
+    this.state.dogMode = next
+    this.floatAtPlayer(`軍犬指令：${names[next]}`, '#fbbf24')
   }
 
   // ---- 大絕：時間緩慢 ----

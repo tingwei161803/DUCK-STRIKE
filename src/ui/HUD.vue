@@ -24,6 +24,7 @@ const ammoList = computed(() =>
 )
 
 const frenzyOn = computed(() => props.state.frenzyT > 0.05)
+const dogModeName = computed(() => ({ follow: '跟隨', guard: '駐守', attack: '出擊' }[props.state.dogMode]))
 const dmgShow = computed(() => props.now - props.state.damageDirAt < 800)
 const dmgOpacity = computed(() => Math.max(0, 1 - (props.now - props.state.damageDirAt) / 800))
 const dmgRot = computed(() => (props.state.damageDir * 180) / Math.PI)
@@ -112,7 +113,7 @@ function floatStyle(f: any) {
     <!-- 軍犬血量 -->
     <div v-if="state.dogAlive" class="mt-2" style="width:150px">
       <div class="flex justify-between text-[10px] tracking-widest text-amber-300/80 mb-0.5">
-        <span>🐕 軍犬 ×{{ state.dogCount }}</span><span class="tabular-nums">{{ state.dogHp }}</span>
+        <span>🐕 ×{{ state.dogCount }} <b class="text-amber-200">{{ dogModeName }}</b> · V</span><span class="tabular-nums">{{ state.dogHp }}</span>
       </div>
       <div class="h-1.5 rounded-full bg-white/10 overflow-hidden">
         <div class="h-full bg-amber-400 transition-all" :style="{ width: Math.max(0, Math.min(100, state.dogHp / state.dogMax * 100)) + '%' }"></div>
@@ -188,6 +189,6 @@ function floatStyle(f: any) {
 
   <!-- 提示列 -->
   <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-[11px] text-white/40 pointer-events-none">
-    WASD 移動 · 滑鼠 瞄準 · 左鍵 射擊 · 右鍵 瞄準 · R 換彈 · G 手榴彈 · F 大絕 · 1-5 換槍 · Shift 跑 · Ctrl 蹲
+    WASD 移動 · 左鍵 射擊 · 右鍵 瞄準 · R 換彈 · G 手榴彈 · F 大絕 · V 狗指令 · 1-6 換槍 · Shift 跑 · Ctrl 蹲
   </div>
 </template>

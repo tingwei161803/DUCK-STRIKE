@@ -91,7 +91,7 @@ class MetaStore {
 
   /** 一場結束：發放 meta 金幣、更新最高分與排行榜。回傳本場獲得的金幣。 */
   endRun(score: number, wave: number): number {
-    const earned = Math.floor(score / 400) + wave * 3
+    const earned = score   // 1 分 = 1 星幣
     this.data.coins += earned
     this.data.best = Math.max(this.data.best, score)
     this.data.board.push({ score, wave, date: new Date().toISOString().slice(0, 10) })

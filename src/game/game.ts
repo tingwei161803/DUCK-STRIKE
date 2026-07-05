@@ -454,10 +454,14 @@ export class Game {
     if (_e.def.boss) {
       this.pickups.spawn('heal', dropPos)
       this.pickups.spawn('frenzy', dropPos.add(new Vector3(1.6, 0, 0)))
-    } else if (Math.random() < DROP.chance) {
-      const r = Math.random()
-      const kind: PickupKind = r < 0.5 ? 'heal' : r < 0.82 ? 'ammo' : 'frenzy'
-      this.pickups.spawn(kind, dropPos)
+    } else {
+      // 連殺越高掉寶率越高（每殺 +6%，上限 ×3；封頂 90% 保留一點懸念）
+      const streakMult = Math.min(DROP.streakBonusCap, 1 + this.state.streak * DROP.streakBonusPer)
+      if (Math.random() < Math.min(0.9, DROP.chance * streakMult)) {
+        const r = Math.random()
+        const kind: PickupKind = r < 0.5 ? 'heal' : r < 0.82 ? 'ammo' : 'frenzy'
+        this.pickups.spawn(kind, dropPos)
+      }
     }
 
     // 連殺獎勵

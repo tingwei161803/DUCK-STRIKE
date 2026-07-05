@@ -187,6 +187,8 @@ export const DIFFICULTIES: Record<Difficulty, DiffMod> = {
 export type PickupKind = 'heal' | 'ammo' | 'frenzy'
 export const DROP = {
   chance: 0.26,            // 一般敵人掉落機率
+  streakBonusPer: 0.06,    // 連殺每殺一隻掉落機率加成（乘數 +6%/殺）
+  streakBonusCap: 3,       // 連殺掉落加成上限（最高 ×3）
   healAmount: 35,
   ammoMags: 2,             // 補當前武器 N 個彈匣量的備彈
   frenzyDuration: 7,       // 狂暴秒數
